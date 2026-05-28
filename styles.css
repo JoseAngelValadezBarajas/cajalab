@@ -236,12 +236,45 @@ h2 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 48px;
+  gap: 14px;
+  min-height: 56px;
   padding: 0 14px;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: 13px;
   font-weight: 800;
+}
+
+.drawing-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.segmented {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(72px, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.segment {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.segment.active {
+  color: #fff;
+  background: var(--accent);
 }
 
 .svg-stage {
@@ -250,6 +283,10 @@ h2 {
   padding: 16px;
   overflow: auto;
   background: #1f2b36;
+}
+
+.svg-stage[data-cut-color="black"] {
+  background: #f8faf8;
 }
 
 .svg-stage svg {
@@ -388,6 +425,12 @@ select {
     align-items: flex-start;
     flex-direction: column;
     padding: 18px;
+  }
+
+  .drawing-head,
+  .drawing-title {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .preview-grid,

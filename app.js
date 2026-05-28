@@ -10,6 +10,8 @@ const inputs = {
   gap: $("gap"),
   openTop: $("openTop"),
   jointType: $("jointType"),
+  cutColor: $("cutColor"),
+  includeMarks: $("includeMarks"),
 };
 
 const svgStage = $("svgStage");
@@ -17,10 +19,13 @@ const svgSize = $("svgSize");
 const cutLength = $("cutLength");
 const boxModel = $("boxModel");
 const scene = $("scene");
+const previewModeButton = $("previewMode");
+const cutModeButton = $("cutMode");
 
 let previewSvg = "";
 let currentSvg = "";
 let currentDxf = "";
+let drawingMode = "preview";
 let view = { rx: -22, ry: 34 };
 let dragging = false;
 let dragStart = { x: 0, y: 0, rx: 0, ry: 0 };
@@ -36,6 +41,8 @@ function readSettings() {
     gap: clampNumber(inputs.gap.value, 4, 60),
     openTop: inputs.openTop.checked,
     jointType: inputs.jointType.value,
+    cutColor: inputs.cutColor.value,
+    includeMarks: inputs.includeMarks.checked,
   };
 }
 
@@ -110,12 +117,28 @@ function panelPath(width, height, tab, finger, variant, jointType) {
   return `M ${points.map((point) => point.join(" ")).join(" L ")} Z`;
 }
 
+function cutStroke(color) {
+  return {
+    white: "#fff",
+    red: "#f04438",
+    black: "#101418",
+  }[color] || "#fff";
+}
+
+function dxfColor(color) {
+  return {
+    white: "7",
+    red: "1",
+    black: "250",
+  }[color] || "7";
+}
+
 function panelBounds(width, height, tab, jointType) {
   if (jointType === "plain") return { w: width, h: height, ox: 0, oy: 0 };
   return { w: width + tab * 2, h: height + tab * 2, ox: tab, oy: tab };
 }
 
-function makePanel({ id, x, y, width, height, tab, finger, variant, jointType }) {
+function makePreviewPanel({ id, label, x, y, width, height, tab, finger, variant, jointType }) {
   const bounds = panelBounds(width, height, tab, jointType);
   const path = panelPath(width, height, tab, finger, variant, jointType);
   const tx = x + bounds.ox;
@@ -123,6 +146,11 @@ function makePanel({ id, x, y, width, height, tab, finger, variant, jointType })
   return `
     <g id="${id}" transform="translate(${rounded(tx)} ${rounded(ty)})">
       <path class="cut-line" d="${path}"/>
+      <line class="fold-line" x1="0" y1="0" x2="${width}" y2="0"/>
+      <line class="fold-line" x1="${width}" y1="0" x2="${width}" y2="${height}"/>
+      <line class="fold-line" x1="${width}" y1="${height}" x2="0" y2="${height}"/>
+      <line class="fold-line" x1="0" y1="${height}" x2="0" y2="0"/>
+      <text class="panel-label" x="${width / 2}" y="${height / 2}">${label}</text>
     </g>`;
 }
 
@@ -137,6 +165,19 @@ function makeCutPanel({ id, x, y, width, height, tab, finger, variant, jointType
     </g>`;
 }
 
+function makeMarkPanel({ id, x, y, width, height, tab, jointType }) {
+  const bounds = panelBounds(width, height, tab, jointType);
+  const tx = x + bounds.ox;
+  const ty = y + bounds.oy;
+  return `
+    <g id="${id}-marks" transform="translate(${rounded(tx)} ${rounded(ty)})">
+      <line class="fold-line" x1="0" y1="0" x2="${width}" y2="0"/>
+      <line class="fold-line" x1="${width}" y1="0" x2="${width}" y2="${height}"/>
+      <line class="fold-line" x1="${width}" y1="${height}" x2="0" y2="${height}"/>
+      <line class="fold-line" x1="0" y1="${height}" x2="0" y2="0"/>
+    </g>`;
+}
+
 function panelCutSegments({ x, y, width, height, tab, finger, variant, jointType }) {
   const bounds = panelBounds(width, height, tab, jointType);
   const tx = x + bounds.ox;
@@ -148,6 +189,24 @@ function panelCutSegments({ x, y, width, height, tab, finger, variant, jointType
     const next = points[(index + 1) % points.length];
     return { layer: "CUT", x1: point[0], y1: point[1], x2: next[0], y2: next[1] };
   });
+}
+
+function panelMarkSegments({ x, y, width, height, tab, jointType }) {
+  const bounds = panelBounds(width, height, tab, jointType);
+  const tx = x + bounds.ox;
+  const ty = y + bounds.oy;
+  return [
+    { layer: "MARK", x1: tx, y1: ty, x2: tx + width, y2: ty },
+    { layer: "MARK", x1: tx + width, y1: ty, x2: tx + width, y2: ty + height },
+    { layer: "MARK", x1: tx + width, y1: ty + height, x2: tx, y2: ty + height },
+    { layer: "MARK", x1: tx, y1: ty + height, x2: tx, y2: ty },
+  ].map((line) => ({
+    ...line,
+    x1: rounded(line.x1),
+    y1: rounded(line.y1),
+    x2: rounded(line.x2),
+    y2: rounded(line.y2),
+  }));
 }
 
 function buildLayout(settings) {
@@ -206,11 +265,12 @@ function dxfNumber(value) {
   return rounded(value).toString();
 }
 
-function makeDxfLine({ layer, x1, y1, x2, y2 }, canvasHeight) {
+function makeDxfLine({ layer, x1, y1, x2, y2 }, canvasHeight, settings) {
+  const color = layer === "CUT" ? dxfColor(settings.cutColor) : "5";
   return [
     "0", "LINE",
     "8", layer,
-    "62", "7",
+    "62", color,
     "10", dxfNumber(x1),
     "20", dxfNumber(canvasHeight - y1),
     "30", "0",
@@ -220,10 +280,31 @@ function makeDxfLine({ layer, x1, y1, x2, y2 }, canvasHeight) {
   ].join("\n");
 }
 
-function buildDxf(layout) {
-  const segments = layout.placed.flatMap(panelCutSegments);
+function buildLayerTable(settings) {
+  const markLayer = settings.includeMarks
+    ? ["0", "LAYER", "2", "MARK", "70", "0", "62", "5", "6", "CONTINUOUS"]
+    : [];
 
-  const lineEntities = segments.map((segment) => makeDxfLine(segment, layout.canvasHeight)).join("\n");
+  return [
+    "0", "TABLE",
+    "2", "LAYER",
+    "70", settings.includeMarks ? "2" : "1",
+    "0", "LAYER",
+    "2", "CUT",
+    "70", "0",
+    "62", dxfColor(settings.cutColor),
+    "6", "CONTINUOUS",
+    ...markLayer,
+    "0", "ENDTAB",
+  ];
+}
+
+function buildDxf(layout, settings) {
+  const cutSegments = layout.placed.flatMap(panelCutSegments);
+  const markSegments = settings.includeMarks ? layout.placed.flatMap(panelMarkSegments) : [];
+  const segments = [...cutSegments, ...markSegments];
+
+  const lineEntities = segments.map((segment) => makeDxfLine(segment, layout.canvasHeight, settings)).join("\n");
   return [
     "0", "SECTION",
     "2", "HEADER",
@@ -234,15 +315,7 @@ function buildDxf(layout) {
     "0", "ENDSEC",
     "0", "SECTION",
     "2", "TABLES",
-    "0", "TABLE",
-    "2", "LAYER",
-    "70", "1",
-    "0", "LAYER",
-    "2", "CUT",
-    "70", "0",
-    "62", "7",
-    "6", "CONTINUOUS",
-    "0", "ENDTAB",
+    ...buildLayerTable(settings),
     "0", "ENDSEC",
     "0", "SECTION",
     "2", "ENTITIES",
@@ -259,28 +332,42 @@ function makeFileName(settings, extension) {
 function render() {
   const settings = readSettings();
   const layout = buildLayout(settings);
-  const panels = layout.placed.map(makePanel).join("");
+  const cutColor = cutStroke(settings.cutColor);
+  const panels = layout.placed.map(makePreviewPanel).join("");
   const cutPanels = layout.placed.map(makeCutPanel).join("");
+  const markPanels = settings.includeMarks ? layout.placed.map(makeMarkPanel).join("") : "";
 
   previewSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${rounded(layout.canvasWidth)} ${rounded(layout.canvasHeight)}" width="${rounded(layout.canvasWidth)}mm" height="${rounded(layout.canvasHeight)}mm">
   <style>
-    .cut-line{fill:none;stroke:#fff;stroke-width:0.35;vector-effect:non-scaling-stroke}
+    .cut-line{fill:none;stroke:${cutColor};stroke-width:0.35;vector-effect:non-scaling-stroke}
+    .fold-line{stroke:#8aa0b5;stroke-width:0.25;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
+    .panel-label{fill:#9ba6af;font-size:7px;font-family:Arial,sans-serif;font-weight:700;text-anchor:middle}
   </style>
   ${panels}
 </svg>`;
 
   currentSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${rounded(layout.canvasWidth)} ${rounded(layout.canvasHeight)}" width="${rounded(layout.canvasWidth)}mm" height="${rounded(layout.canvasHeight)}mm">
   <style>
-    .cut-line{fill:none;stroke:#fff;stroke-width:0.35;vector-effect:non-scaling-stroke}
+    .cut-line{fill:none;stroke:${cutColor};stroke-width:0.35;vector-effect:non-scaling-stroke}
+    .fold-line{stroke:#2b65b1;stroke-width:0.25;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
   </style>
   ${cutPanels}
+  ${markPanels}
 </svg>`;
-  currentDxf = buildDxf(layout);
+  currentDxf = buildDxf(layout, settings);
 
-  svgStage.innerHTML = previewSvg;
+  svgStage.dataset.cutColor = settings.cutColor;
+  svgStage.innerHTML = drawingMode === "preview" ? previewSvg : currentSvg;
   svgSize.value = `${Math.ceil(layout.canvasWidth)} x ${Math.ceil(layout.canvasHeight)} mm`;
   cutLength.textContent = `${estimateCutLength(settings).toFixed(2)} m`;
   updateModel(settings);
+}
+
+function setDrawingMode(mode) {
+  drawingMode = mode;
+  previewModeButton.classList.toggle("active", mode === "preview");
+  cutModeButton.classList.toggle("active", mode === "cut");
+  render();
 }
 
 function updateModel({ width, depth, height, openTop, jointType }) {
@@ -328,6 +415,8 @@ Object.values(inputs).forEach((input) => {
 
 $("downloadSvg").addEventListener("click", downloadSvg);
 $("downloadDxf").addEventListener("click", downloadDxf);
+previewModeButton.addEventListener("click", () => setDrawingMode("preview"));
+cutModeButton.addEventListener("click", () => setDrawingMode("cut"));
 $("resetView").addEventListener("click", () => {
   view = { rx: -22, ry: 34 };
   render();

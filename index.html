@@ -47,7 +47,13 @@
 
           <section class="drawing-panel" aria-label="Plano SVG">
             <div class="drawing-head">
-              <span>Plano 2D</span>
+              <div class="drawing-title">
+                <span>Plano 2D</span>
+                <div class="segmented" aria-label="Modo de vista">
+                  <button class="segment active" type="button" id="previewMode">Preview</button>
+                  <button class="segment" type="button" id="cutMode">Corte</button>
+                </div>
+              </div>
               <output id="svgSize">0 x 0 mm</output>
             </div>
             <div class="svg-stage" id="svgStage"></div>
@@ -125,6 +131,22 @@
               <input type="number" id="gap" min="4" max="60" step="1" value="12">
               <small>mm</small>
             </span>
+          </label>
+        </div>
+
+        <div class="control-group">
+          <h2>Exportacion</h2>
+          <label>
+            Color de corte
+            <select id="cutColor">
+              <option value="white">Blanco</option>
+              <option value="red">Rojo</option>
+              <option value="black">Negro</option>
+            </select>
+          </label>
+          <label class="switch-row">
+            Marcas internas
+            <input type="checkbox" id="includeMarks">
           </label>
         </div>
 
