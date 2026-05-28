@@ -233,28 +233,66 @@ h2 {
 }
 
 .drawing-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title size"
+    "tools tools";
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  min-height: 56px;
-  padding: 0 14px;
+  gap: 8px 14px;
+  min-height: 86px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: 13px;
   font-weight: 800;
 }
 
+.zoom-tools {
+  grid-area: tools;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.drawing-head > output:not(#zoomValue) {
+  grid-area: size;
+  text-align: right;
+}
+
+.zoom-tools output {
+  width: 48px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.icon-button.small {
+  width: 32px;
+  height: 32px;
+}
+
+.icon-button.small svg {
+  width: 16px;
+  height: 16px;
+}
+
 .drawing-title {
+  grid-area: title;
   display: flex;
   align-items: center;
   gap: 12px;
   min-width: 0;
 }
 
+.drawing-title > span {
+  white-space: nowrap;
+}
+
 .segmented {
   display: inline-grid;
-  grid-template-columns: repeat(2, minmax(72px, 1fr));
+  grid-template-columns: repeat(2, minmax(64px, 1fr));
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -278,11 +316,24 @@ h2 {
 }
 
 .svg-stage {
+  position: relative;
   flex: 1;
   min-height: 0;
   padding: 16px;
   overflow: auto;
   background: #1f2b36;
+  cursor: grab;
+  user-select: none;
+}
+
+.svg-stage.is-panning {
+  cursor: grabbing;
+}
+
+.svg-pan {
+  min-width: max-content;
+  min-height: max-content;
+  transform-origin: top left;
 }
 
 .svg-stage[data-cut-color="black"] {
@@ -291,8 +342,8 @@ h2 {
 
 .svg-stage svg {
   display: block;
-  width: 100%;
-  min-width: 520px;
+  width: auto;
+  min-width: 0;
   height: auto;
 }
 
@@ -382,6 +433,40 @@ select {
   font-size: 24px;
 }
 
+.status-box small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.status-box.warning strong,
+.status-box.warning small {
+  color: #b42318;
+}
+
+.bed-outline {
+  fill: rgba(255, 255, 255, 0.025);
+  stroke: rgba(255, 255, 255, 0.24);
+  stroke-width: 0.35;
+  vector-effect: non-scaling-stroke;
+}
+
+.bed-margin {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 0.25;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.svg-stage[data-cut-color="black"] .bed-outline {
+  fill: rgba(16, 20, 24, 0.025);
+  stroke: rgba(16, 20, 24, 0.22);
+}
+
+.svg-stage[data-cut-color="black"] .bed-margin {
+  stroke: rgba(16, 20, 24, 0.18);
+}
+
 .panel-label {
   fill: #9ba6af;
   font-size: 7px;
@@ -430,7 +515,6 @@ select {
   .drawing-head,
   .drawing-title {
     align-items: flex-start;
-    flex-direction: column;
   }
 
   .preview-grid,

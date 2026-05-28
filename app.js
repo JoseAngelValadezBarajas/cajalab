@@ -12,23 +12,37 @@ const inputs = {
   jointType: $("jointType"),
   cutColor: $("cutColor"),
   includeMarks: $("includeMarks"),
+  bedPreset: $("bedPreset"),
+  bedWidth: $("bedWidth"),
+  bedHeight: $("bedHeight"),
+  margin: $("margin"),
 };
 
 const svgStage = $("svgStage");
+const svgPan = $("svgPan");
 const svgSize = $("svgSize");
 const cutLength = $("cutLength");
+const layoutStatus = $("layoutStatus");
 const boxModel = $("boxModel");
 const scene = $("scene");
 const previewModeButton = $("previewMode");
 const cutModeButton = $("cutMode");
+const zoomInButton = $("zoomIn");
+const zoomOutButton = $("zoomOut");
+const fitViewButton = $("fitView");
+const zoomValue = $("zoomValue");
 
 let previewSvg = "";
 let currentSvg = "";
 let currentDxf = "";
 let drawingMode = "preview";
+let zoom = 1;
+let needsFit = true;
 let view = { rx: -22, ry: 34 };
 let dragging = false;
 let dragStart = { x: 0, y: 0, rx: 0, ry: 0 };
+let panning = false;
+let panStart = { x: 0, y: 0, left: 0, top: 0 };
 
 function readSettings() {
   return {
@@ -43,6 +57,10 @@ function readSettings() {
     jointType: inputs.jointType.value,
     cutColor: inputs.cutColor.value,
     includeMarks: inputs.includeMarks.checked,
+    bedPreset: inputs.bedPreset.value,
+    bedWidth: clampNumber(inputs.bedWidth.value, 80, 1600),
+    bedHeight: clampNumber(inputs.bedHeight.value, 80, 1200),
+    margin: clampNumber(inputs.margin.value, 0, 80),
   };
 }
 
@@ -138,6 +156,14 @@ function panelBounds(width, height, tab, jointType) {
   return { w: width + tab * 2, h: height + tab * 2, ox: tab, oy: tab };
 }
 
+function bedSvg(settings) {
+  const safeWidth = Math.max(0, settings.bedWidth - settings.margin * 2);
+  const safeHeight = Math.max(0, settings.bedHeight - settings.margin * 2);
+  return `
+    <rect class="bed-outline" x="0" y="0" width="${settings.bedWidth}" height="${settings.bedHeight}"/>
+    <rect class="bed-margin" x="${settings.margin}" y="${settings.margin}" width="${safeWidth}" height="${safeHeight}"/>`;
+}
+
 function makePreviewPanel({ id, label, x, y, width, height, tab, finger, variant, jointType }) {
   const bounds = panelBounds(width, height, tab, jointType);
   const path = panelPath(width, height, tab, finger, variant, jointType);
@@ -224,34 +250,42 @@ function buildLayout(settings) {
     parts.push({ id: "top", label: "Tapa", width, height: depth, variant: 1 });
   }
 
-  const rows = [];
-  let row = [];
-  parts.forEach((part) => {
-    row.push(part);
-    if (row.length === 3) {
-      rows.push(row);
-      row = [];
-    }
-  });
-  if (row.length) rows.push(row);
-
-  let y = gap;
+  const bedRight = settings.bedWidth - settings.margin;
+  const bedBottom = settings.bedHeight - settings.margin;
+  let x = settings.margin;
+  let y = settings.margin;
+  let rowHeight = 0;
   const placed = [];
-  let canvasWidth = 0;
+  const oversized = [];
 
-  rows.forEach((items) => {
-    const rowHeight = Math.max(...items.map((part) => panelBounds(part.width, part.height, tab, jointType).h));
-    let x = gap;
-    items.forEach((part) => {
-      const bounds = panelBounds(part.width, part.height, tab, jointType);
-      placed.push({ ...part, x, y, tab, finger, jointType });
-      x += bounds.w + gap;
-    });
-    canvasWidth = Math.max(canvasWidth, x);
-    y += rowHeight + gap;
+  parts.forEach((part) => {
+    const bounds = panelBounds(part.width, part.height, tab, jointType);
+    const fitsWidth = bounds.w <= settings.bedWidth - settings.margin * 2;
+    const fitsHeight = bounds.h <= settings.bedHeight - settings.margin * 2;
+
+    if (x > settings.margin && x + bounds.w > bedRight) {
+      x = settings.margin;
+      y += rowHeight + gap;
+      rowHeight = 0;
+    }
+
+    if (!fitsWidth || !fitsHeight || y + bounds.h > bedBottom) {
+      oversized.push(part.label);
+    }
+
+    placed.push({ ...part, x, y, tab, finger, jointType, outOfBounds: y + bounds.h > bedBottom || !fitsWidth || !fitsHeight });
+    x += bounds.w + gap;
+    rowHeight = Math.max(rowHeight, bounds.h);
   });
 
-  return { placed, canvasWidth, canvasHeight: y, tab };
+  return {
+    placed,
+    canvasWidth: settings.bedWidth,
+    canvasHeight: settings.bedHeight,
+    tab,
+    fitsBed: oversized.length === 0,
+    oversized,
+  };
 }
 
 function estimateCutLength(settings) {
@@ -342,7 +376,10 @@ function render() {
     .cut-line{fill:none;stroke:${cutColor};stroke-width:0.35;vector-effect:non-scaling-stroke}
     .fold-line{stroke:#8aa0b5;stroke-width:0.25;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
     .panel-label{fill:#9ba6af;font-size:7px;font-family:Arial,sans-serif;font-weight:700;text-anchor:middle}
+    .bed-outline{fill:rgba(255,255,255,0.025);stroke:rgba(255,255,255,0.24);stroke-width:0.35;vector-effect:non-scaling-stroke}
+    .bed-margin{fill:none;stroke:rgba(255,255,255,0.22);stroke-width:0.25;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
   </style>
+  ${bedSvg(settings)}
   ${panels}
 </svg>`;
 
@@ -357,9 +394,15 @@ function render() {
   currentDxf = buildDxf(layout, settings);
 
   svgStage.dataset.cutColor = settings.cutColor;
-  svgStage.innerHTML = drawingMode === "preview" ? previewSvg : currentSvg;
+  svgPan.innerHTML = drawingMode === "preview" ? previewSvg : currentSvg;
   svgSize.value = `${Math.ceil(layout.canvasWidth)} x ${Math.ceil(layout.canvasHeight)} mm`;
   cutLength.textContent = `${estimateCutLength(settings).toFixed(2)} m`;
+  layoutStatus.textContent = layout.fitsBed
+    ? `Cabe en cama ${settings.bedWidth} x ${settings.bedHeight} mm`
+    : `No cabe: ${layout.oversized.join(", ")}`;
+  cutLength.parentElement.classList.toggle("warning", !layout.fitsBed);
+  applyZoom();
+  if (needsFit) fitToView();
   updateModel(settings);
 }
 
@@ -368,6 +411,44 @@ function setDrawingMode(mode) {
   previewModeButton.classList.toggle("active", mode === "preview");
   cutModeButton.classList.toggle("active", mode === "cut");
   render();
+}
+
+function applyZoom() {
+  const svg = svgPan.querySelector("svg");
+  if (svg) {
+    const viewBox = svg.getAttribute("viewBox").split(" ").map(Number);
+    const width = viewBox[2];
+    const height = viewBox[3];
+    svg.style.width = `${width}px`;
+    svg.style.height = `${height}px`;
+    svgPan.style.width = `${width * zoom}px`;
+    svgPan.style.height = `${height * zoom}px`;
+  }
+  svgPan.style.transform = `scale(${zoom})`;
+  zoomValue.value = `${Math.round(zoom * 100)}%`;
+}
+
+function setZoom(nextZoom) {
+  zoom = Math.min(Math.max(nextZoom, 0.25), 4);
+  needsFit = false;
+  applyZoom();
+}
+
+function fitToView() {
+  const svg = svgPan.querySelector("svg");
+  if (!svg) return;
+
+  const viewBox = svg.getAttribute("viewBox").split(" ").map(Number);
+  const width = viewBox[2];
+  const height = viewBox[3];
+  const availableWidth = Math.max(120, svgStage.clientWidth - 36);
+  const availableHeight = Math.max(120, svgStage.clientHeight - 36);
+  zoom = Math.min(availableWidth / width, availableHeight / height, 2);
+  zoom = Math.max(zoom, 0.25);
+  applyZoom();
+  svgStage.scrollLeft = 0;
+  svgStage.scrollTop = 0;
+  needsFit = false;
 }
 
 function updateModel({ width, depth, height, openTop, jointType }) {
@@ -413,10 +494,37 @@ Object.values(inputs).forEach((input) => {
   input.addEventListener("change", render);
 });
 
+inputs.bedPreset.addEventListener("change", () => {
+  if (inputs.bedPreset.value === "300x200") {
+    inputs.bedWidth.value = 300;
+    inputs.bedHeight.value = 200;
+  }
+  if (inputs.bedPreset.value === "600x400") {
+    inputs.bedWidth.value = 600;
+    inputs.bedHeight.value = 400;
+  }
+  needsFit = true;
+  render();
+});
+
+inputs.bedWidth.addEventListener("input", () => {
+  inputs.bedPreset.value = "custom";
+});
+
+inputs.bedHeight.addEventListener("input", () => {
+  inputs.bedPreset.value = "custom";
+});
+
 $("downloadSvg").addEventListener("click", downloadSvg);
 $("downloadDxf").addEventListener("click", downloadDxf);
 previewModeButton.addEventListener("click", () => setDrawingMode("preview"));
 cutModeButton.addEventListener("click", () => setDrawingMode("cut"));
+zoomInButton.addEventListener("click", () => setZoom(zoom * 1.2));
+zoomOutButton.addEventListener("click", () => setZoom(zoom / 1.2));
+fitViewButton.addEventListener("click", () => {
+  needsFit = true;
+  fitToView();
+});
 $("resetView").addEventListener("click", () => {
   view = { rx: -22, ry: 34 };
   render();
@@ -437,6 +545,41 @@ scene.addEventListener("pointermove", (event) => {
 
 scene.addEventListener("pointerup", () => {
   dragging = false;
+});
+
+svgStage.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) return;
+  panning = true;
+  panStart = {
+    x: event.clientX,
+    y: event.clientY,
+    left: svgStage.scrollLeft,
+    top: svgStage.scrollTop,
+  };
+  svgStage.classList.add("is-panning");
+  svgStage.setPointerCapture(event.pointerId);
+});
+
+svgStage.addEventListener("pointermove", (event) => {
+  if (!panning) return;
+  svgStage.scrollLeft = panStart.left - (event.clientX - panStart.x);
+  svgStage.scrollTop = panStart.top - (event.clientY - panStart.y);
+});
+
+svgStage.addEventListener("pointerup", () => {
+  panning = false;
+  svgStage.classList.remove("is-panning");
+});
+
+svgStage.addEventListener("wheel", (event) => {
+  if (!event.ctrlKey) return;
+  event.preventDefault();
+  setZoom(event.deltaY > 0 ? zoom / 1.1 : zoom * 1.1);
+}, { passive: false });
+
+window.addEventListener("resize", () => {
+  needsFit = true;
+  fitToView();
 });
 
 document.addEventListener("DOMContentLoaded", () => {

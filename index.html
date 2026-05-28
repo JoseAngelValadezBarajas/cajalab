@@ -54,9 +54,23 @@
                   <button class="segment" type="button" id="cutMode">Corte</button>
                 </div>
               </div>
+              <div class="zoom-tools" aria-label="Zoom del plano">
+                <button class="icon-button small" type="button" id="zoomOut" aria-label="Alejar" title="Alejar">
+                  <i data-lucide="minus"></i>
+                </button>
+                <output id="zoomValue">100%</output>
+                <button class="icon-button small" type="button" id="zoomIn" aria-label="Acercar" title="Acercar">
+                  <i data-lucide="plus"></i>
+                </button>
+                <button class="icon-button small" type="button" id="fitView" aria-label="Ajustar a pantalla" title="Ajustar a pantalla">
+                  <i data-lucide="maximize-2"></i>
+                </button>
+              </div>
               <output id="svgSize">0 x 0 mm</output>
             </div>
-            <div class="svg-stage" id="svgStage"></div>
+            <div class="svg-stage" id="svgStage">
+              <div class="svg-pan" id="svgPan"></div>
+            </div>
           </section>
         </div>
       </section>
@@ -135,6 +149,39 @@
         </div>
 
         <div class="control-group">
+          <h2>Material</h2>
+          <label>
+            Cama
+            <select id="bedPreset">
+              <option value="300x200">300 x 200 mm</option>
+              <option value="600x400">600 x 400 mm</option>
+              <option value="custom">Personalizado</option>
+            </select>
+          </label>
+          <label>
+            Ancho cama
+            <span class="field">
+              <input type="number" id="bedWidth" min="80" max="1600" step="1" value="300">
+              <small>mm</small>
+            </span>
+          </label>
+          <label>
+            Alto cama
+            <span class="field">
+              <input type="number" id="bedHeight" min="80" max="1200" step="1" value="200">
+              <small>mm</small>
+            </span>
+          </label>
+          <label>
+            Margen material
+            <span class="field">
+              <input type="number" id="margin" min="0" max="80" step="1" value="10">
+              <small>mm</small>
+            </span>
+          </label>
+        </div>
+
+        <div class="control-group">
           <h2>Exportacion</h2>
           <label>
             Color de corte
@@ -153,6 +200,7 @@
         <div class="status-box">
           <span>Longitud estimada de corte</span>
           <strong id="cutLength">0 m</strong>
+          <small id="layoutStatus">Listo para cortar</small>
         </div>
       </aside>
     </main>
