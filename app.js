@@ -32,11 +32,13 @@ const zoomInButton = $("zoomIn");
 const zoomOutButton = $("zoomOut");
 const fitViewButton = $("fitView");
 const zoomValue = $("zoomValue");
+const terrariumModeButton = $("terrariumMode");
 
 let previewSvg = "";
 let currentSvg = "";
 let currentDxf = "";
 let drawingMode = "preview";
+let terrariumMode = false;
 let zoom = 1;
 let needsFit = true;
 let view = { rx: -22, ry: 34 };
@@ -63,6 +65,7 @@ function readSettings() {
     bedHeight: clampNumber(inputs.bedHeight.value, 80, 1200),
     margin: clampNumber(inputs.margin.value, 0, 80),
     joinPieces: inputs.joinPieces.checked,
+    terrariumMode,
   };
 }
 
@@ -249,6 +252,80 @@ function panelCutSegments({ x, y, width, height, tab, finger, edgeVariants, join
   });
 }
 
+function rectangleSegments(x, y, width, height, layer = "CUT") {
+  return [
+    { layer, x1: x, y1: y, x2: x + width, y2: y },
+    { layer, x1: x + width, y1: y, x2: x + width, y2: y + height },
+    { layer, x1: x + width, y1: y + height, x2: x, y2: y + height },
+    { layer, x1: x, y1: y + height, x2: x, y2: y },
+  ].map((segment) => ({
+    ...segment,
+    x1: rounded(segment.x1),
+    y1: rounded(segment.y1),
+    x2: rounded(segment.x2),
+    y2: rounded(segment.y2),
+  }));
+}
+
+function lineBank({ x, y, length, count, spacing, orientation }) {
+  return Array.from({ length: count }, (_, index) => {
+    const offset = index * spacing;
+    if (orientation === "vertical") {
+      return { layer: "CUT", x1: rounded(x + offset), y1: rounded(y), x2: rounded(x + offset), y2: rounded(y + length) };
+    }
+    return { layer: "CUT", x1: rounded(x), y1: rounded(y + offset), x2: rounded(x + length), y2: rounded(y + offset) };
+  });
+}
+
+function panelTerrariumSegments(panel) {
+  if (!panel.terrariumMode) return [];
+
+  const bounds = panelBounds(panel.width, panel.height, panel.tab, panel.jointType);
+  const tx = panel.x + bounds.ox;
+  const ty = panel.y + bounds.oy;
+  const inset = Math.max(10, Math.min(panel.width, panel.height) * 0.16);
+  const frame = Math.max(5, panel.tab * 2.5);
+
+  if (panel.id === "front" || panel.id === "back") {
+    const outerX = tx + inset;
+    const outerY = ty + inset;
+    const outerW = Math.max(20, panel.width - inset * 2);
+    const outerH = Math.max(16, panel.height - inset * 2);
+    const innerX = outerX + frame;
+    const innerY = outerY + frame;
+    const innerW = Math.max(10, outerW - frame * 2);
+    const innerH = Math.max(8, outerH - frame * 2);
+    return [
+      ...rectangleSegments(outerX, outerY, outerW, outerH),
+      ...rectangleSegments(innerX, innerY, innerW, innerH),
+    ];
+  }
+
+  if (panel.id === "top") {
+    const slitLength = Math.max(28, panel.width * 0.26);
+    const slitCount = 6;
+    const spacing = Math.max(6, panel.height * 0.09);
+    const bankY = ty + panel.height * 0.28;
+    return [
+      ...lineBank({ x: tx + panel.width * 0.18, y: bankY, length: slitLength, count: slitCount, spacing, orientation: "horizontal" }),
+      ...lineBank({ x: tx + panel.width * 0.58, y: bankY, length: slitLength, count: slitCount, spacing, orientation: "horizontal" }),
+    ];
+  }
+
+  if (panel.id === "left" || panel.id === "right") {
+    const slitLength = Math.max(24, panel.height * 0.34);
+    const slitCount = 6;
+    const spacing = Math.max(5, panel.width * 0.08);
+    const bankX = tx + panel.width * 0.22;
+    return [
+      ...lineBank({ x: bankX, y: ty + panel.height * 0.18, length: slitLength, count: slitCount, spacing, orientation: "vertical" }),
+      ...lineBank({ x: bankX, y: ty + panel.height * 0.58, length: slitLength, count: slitCount, spacing, orientation: "vertical" }),
+    ];
+  }
+
+  return [];
+}
+
 function segmentKey({ layer, x1, y1, x2, y2 }) {
   const a = `${rounded(x1)},${rounded(y1)}`;
   const b = `${rounded(x2)},${rounded(y2)}`;
@@ -264,7 +341,10 @@ function uniqueSegments(segments) {
 }
 
 function cutSegmentsForLayout(layout, settings) {
-  const segments = layout.placed.flatMap(panelCutSegments);
+  const segments = layout.placed.flatMap((panel) => [
+    ...panelCutSegments(panel),
+    ...panelTerrariumSegments(panel),
+  ]);
   return settings.joinPieces ? uniqueSegments(segments) : segments;
 }
 
@@ -331,7 +411,7 @@ function buildLayout(settings) {
       oversized.push(part.label);
     }
 
-    placed.push({ ...part, x, y, tab, finger, jointType, outOfBounds: y + bounds.h > bedBottom || !fitsWidth || !fitsHeight });
+    placed.push({ ...part, x, y, tab, finger, jointType, terrariumMode: settings.terrariumMode, outOfBounds: y + bounds.h > bedBottom || !fitsWidth || !fitsHeight });
     x += bounds.w + layoutGapX;
     rowHeight = Math.max(rowHeight, bounds.h);
   });
@@ -428,6 +508,7 @@ function render() {
   const layout = buildLayout(settings);
   const cutColor = cutStroke(settings.cutColor);
   const panels = layout.placed.map(makePreviewPanel).join("");
+  const terrariumPanels = layout.placed.flatMap(panelTerrariumSegments).map(svgLine).join("");
   const cutPanels = cutSegmentsForLayout(layout, settings).map(svgLine).join("");
   const markPanels = settings.includeMarks ? layout.placed.flatMap(panelMarkSegments).map(svgLine).join("") : "";
 
@@ -441,6 +522,7 @@ function render() {
   </style>
   ${bedSvg(settings)}
   ${panels}
+  ${terrariumPanels}
 </svg>`;
 
   currentSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${rounded(layout.canvasWidth)} ${rounded(layout.canvasHeight)}" width="${rounded(layout.canvasWidth)}mm" height="${rounded(layout.canvasHeight)}mm">
@@ -456,6 +538,7 @@ function render() {
   currentDxf = buildDxf(layout, settings);
 
   svgStage.dataset.cutColor = settings.cutColor;
+  terrariumModeButton.classList.toggle("active", settings.terrariumMode);
   svgPan.innerHTML = drawingMode === "preview" ? previewSvg : currentSvg;
   svgSize.value = `${Math.ceil(layout.canvasWidth)} x ${Math.ceil(layout.canvasHeight)} mm`;
   cutLength.textContent = `${estimateCutLength(layout, settings).toFixed(2)} m`;
@@ -581,6 +664,10 @@ $("downloadSvg").addEventListener("click", downloadSvg);
 $("downloadDxf").addEventListener("click", downloadDxf);
 previewModeButton.addEventListener("click", () => setDrawingMode("preview"));
 cutModeButton.addEventListener("click", () => setDrawingMode("cut"));
+terrariumModeButton.addEventListener("click", () => {
+  terrariumMode = !terrariumMode;
+  render();
+});
 zoomInButton.addEventListener("click", () => setZoom(zoom * 1.2));
 zoomOutButton.addEventListener("click", () => setZoom(zoom / 1.2));
 fitViewButton.addEventListener("click", () => {

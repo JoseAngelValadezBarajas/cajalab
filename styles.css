@@ -115,6 +115,22 @@ h2 {
   background: var(--accent-dark);
 }
 
+.tool-button {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--accent-dark);
+  background: #eef7f3;
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.tool-button.active {
+  color: #fff;
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
 .icon-button svg,
 .primary-button svg {
   width: 19px;
