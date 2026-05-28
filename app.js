@@ -304,20 +304,30 @@ function ventInsertSegments(panel) {
   const bounds = panelBounds(panel.width, panel.height, panel.tab, panel.jointType);
   const tx = panel.x + bounds.ox;
   const ty = panel.y + bounds.oy;
-  const inset = Math.max(8, Math.min(panel.width, panel.height) * 0.14);
-  const slitCount = 7;
-  const slitLength = Math.max(28, panel.height * 0.62);
-  const spacing = (panel.width - inset * 2) / (slitCount - 1);
+  const slitCount = 6;
+  const slitLength = panel.width * 0.28;
+  const usableHeight = panel.height * 0.64;
+  const slitSpacing = usableHeight / (slitCount + 1);
+  const slitY = ty + (panel.height - usableHeight) / 2 + slitSpacing;
+  const leftSlitX = tx + panel.width * 0.2;
+  const rightSlitX = tx + panel.width * 0.6;
 
   return [
-    ...rectangleSegments(tx, ty, panel.width, panel.height),
     ...lineBank({
-      x: tx + inset,
-      y: ty + (panel.height - slitLength) / 2,
+      x: leftSlitX,
+      y: slitY,
       length: slitLength,
       count: slitCount,
-      spacing,
-      orientation: "vertical",
+      spacing: slitSpacing,
+      orientation: "horizontal",
+    }),
+    ...lineBank({
+      x: rightSlitX,
+      y: slitY,
+      length: slitLength,
+      count: slitCount,
+      spacing: slitSpacing,
+      orientation: "horizontal",
     }),
   ];
 }
