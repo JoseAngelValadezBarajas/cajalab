@@ -288,18 +288,25 @@ function lineBank({ x, y, length, count, spacing, orientation }) {
 }
 
 function ventInsertSpec(width, height) {
-  const insertWidth = Math.max(38, width * 0.36);
-  const insertHeight = Math.max(42, height * 0.72);
-  return { width: insertWidth, height: insertHeight };
+  const openingWidth = Math.max(60, width * 0.78);
+  const openingHeight = Math.max(38, height * 0.62);
+  const insertMargin = Math.max(8, Math.min(width, height) * 0.08);
+  return {
+    openingWidth,
+    openingHeight,
+    width: openingWidth + insertMargin * 2,
+    height: openingHeight + insertMargin * 2,
+    insertMargin,
+  };
 }
 
 function ventInsertSegments(panel) {
   const bounds = panelBounds(panel.width, panel.height, panel.tab, panel.jointType);
   const tx = panel.x + bounds.ox;
   const ty = panel.y + bounds.oy;
-  const inset = Math.max(5, Math.min(panel.width, panel.height) * 0.12);
+  const inset = Math.max(8, Math.min(panel.width, panel.height) * 0.14);
   const slitCount = 7;
-  const slitLength = Math.max(24, panel.height * 0.5);
+  const slitLength = Math.max(28, panel.height * 0.62);
   const spacing = (panel.width - inset * 2) / (slitCount - 1);
 
   return [
@@ -326,36 +333,22 @@ function panelTerrariumSegments(panel) {
   const ty = panel.y + bounds.oy;
 
   const insert = ventInsertSpec(panel.width, panel.height);
-  const outerWidth = insert.width * 0.82;
-  const outerHeight = insert.height * 0.78;
-  const frame = Math.max(4, panel.tab * 1.6);
+  const openingWidth = insert.openingWidth;
+  const openingHeight = insert.openingHeight;
   const slitCount = 6;
-  const slitLength = outerWidth * 0.72;
-  const slitSpacing = outerHeight / (slitCount + 1);
-  const bankY = ty + (panel.height - outerHeight) / 2;
-  const leftBankX = tx + panel.width * 0.18;
-  const rightBankX = tx + panel.width - panel.width * 0.18 - outerWidth;
+  const slitLength = openingWidth * 0.28;
+  const slitSpacing = openingHeight / (slitCount + 1);
+  const openingX = tx + (panel.width - openingWidth) / 2;
+  const openingY = ty + (panel.height - openingHeight) / 2;
+  const leftSlitX = openingX + openingWidth * 0.16;
+  const rightSlitX = openingX + openingWidth * 0.56;
+  const slitY = openingY + slitSpacing;
 
-  const makeBank = (x) => {
-    const innerX = x + frame;
-    const innerY = bankY + frame;
-    const innerW = outerWidth - frame * 2;
-    const innerH = outerHeight - frame * 2;
-    return [
-      ...rectangleSegments(x, bankY, outerWidth, outerHeight),
-      ...rectangleSegments(innerX, innerY, innerW, innerH),
-      ...lineBank({
-        x: innerX + (innerW - slitLength) / 2,
-        y: innerY + slitSpacing * 0.65,
-        length: slitLength,
-        count: slitCount,
-        spacing: slitSpacing * 0.72,
-        orientation: "horizontal",
-      }),
-    ];
-  };
-
-  return [...makeBank(leftBankX), ...makeBank(rightBankX)];
+  return [
+    ...rectangleSegments(openingX, openingY, openingWidth, openingHeight),
+    ...lineBank({ x: leftSlitX, y: slitY, length: slitLength, count: slitCount, spacing: slitSpacing, orientation: "horizontal" }),
+    ...lineBank({ x: rightSlitX, y: slitY, length: slitLength, count: slitCount, spacing: slitSpacing, orientation: "horizontal" }),
+  ];
 }
 
 function segmentKey({ layer, x1, y1, x2, y2 }) {
