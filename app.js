@@ -102,7 +102,17 @@ function normalizeEdgeVariants(edgeVariants) {
   };
 }
 
-function panelPoints(width, height, tab, finger, edgeVariants, jointType) {
+function fillCornerSquares(points, width, height, tab) {
+  return points.map(([x, y]) => {
+    if (x === 0 && y === 0) return [rounded(-tab), rounded(-tab)];
+    if (x === width && y === 0) return [rounded(width + tab), rounded(-tab)];
+    if (x === width && y === height) return [rounded(width + tab), rounded(height + tab)];
+    if (x === 0 && y === height) return [rounded(-tab), rounded(height + tab)];
+    return [x, y];
+  });
+}
+
+function panelPoints(width, height, tab, finger, edgeVariants, jointType, cornerFill = false) {
   if (jointType === "plain") {
     return [
       [0, 0],
@@ -149,11 +159,11 @@ function panelPoints(width, height, tab, finger, edgeVariants, jointType) {
   addEdge("right", 1, variants.right);
   addEdge("bottom", 1, variants.bottom);
   addEdge("left", -1, variants.left);
-  return points;
+  return cornerFill ? fillCornerSquares(points, width, height, tab) : points;
 }
 
-function panelPath(width, height, tab, finger, edgeVariants, jointType) {
-  const points = panelPoints(width, height, tab, finger, edgeVariants, jointType);
+function panelPath(width, height, tab, finger, edgeVariants, jointType, cornerFill = false) {
+  const points = panelPoints(width, height, tab, finger, edgeVariants, jointType, cornerFill);
   return `M ${points.map((point) => point.join(" ")).join(" L ")} Z`;
 }
 
@@ -186,9 +196,9 @@ function bedSvg(settings) {
     <rect class="bed-margin" x="${settings.margin}" y="${settings.margin}" width="${safeWidth}" height="${safeHeight}"/>`;
 }
 
-function makePreviewPanel({ id, label, x, y, width, height, tab, finger, edgeVariants, jointType }) {
+function makePreviewPanel({ id, label, x, y, width, height, tab, finger, edgeVariants, jointType, cornerFill }) {
   const bounds = panelBounds(width, height, tab, jointType);
-  const path = panelPath(width, height, tab, finger, edgeVariants, jointType);
+  const path = panelPath(width, height, tab, finger, edgeVariants, jointType, cornerFill);
   const tx = x + bounds.ox;
   const ty = y + bounds.oy;
   return `
@@ -202,9 +212,9 @@ function makePreviewPanel({ id, label, x, y, width, height, tab, finger, edgeVar
     </g>`;
 }
 
-function makeCutPanel({ id, x, y, width, height, tab, finger, edgeVariants, jointType }) {
+function makeCutPanel({ id, x, y, width, height, tab, finger, edgeVariants, jointType, cornerFill }) {
   const bounds = panelBounds(width, height, tab, jointType);
-  const path = panelPath(width, height, tab, finger, edgeVariants, jointType);
+  const path = panelPath(width, height, tab, finger, edgeVariants, jointType, cornerFill);
   const tx = x + bounds.ox;
   const ty = y + bounds.oy;
   return `
@@ -226,11 +236,11 @@ function makeMarkPanel({ id, x, y, width, height, tab, jointType }) {
     </g>`;
 }
 
-function panelCutSegments({ x, y, width, height, tab, finger, edgeVariants, jointType }) {
+function panelCutSegments({ x, y, width, height, tab, finger, edgeVariants, jointType, cornerFill }) {
   const bounds = panelBounds(width, height, tab, jointType);
   const tx = x + bounds.ox;
   const ty = y + bounds.oy;
-  const points = panelPoints(width, height, tab, finger, edgeVariants, jointType)
+  const points = panelPoints(width, height, tab, finger, edgeVariants, jointType, cornerFill)
     .map(([px, py]) => [rounded(px + tx), rounded(py + ty)]);
 
   return points.map((point, index) => {
@@ -291,11 +301,11 @@ function buildLayout(settings) {
     { id: "back", label: "Atras", width, height, edgeVariants: { top: 1, right: 0, bottom: 1, left: 0 } },
     { id: "left", label: "Izquierda", width: depth, height, edgeVariants: { top: 1, right: 1, bottom: 1, left: 1 } },
     { id: "right", label: "Derecha", width: depth, height, edgeVariants: { top: 1, right: 1, bottom: 1, left: 1 } },
-    { id: "bottom", label: "Base", width, height: depth, edgeVariants: { top: 0, right: 0, bottom: 0, left: 0 } },
+    { id: "bottom", label: "Base", width, height: depth, edgeVariants: { top: 0, right: 0, bottom: 0, left: 0 }, cornerFill: true },
   ];
 
   if (!openTop) {
-    parts.push({ id: "top", label: "Tapa", width, height: depth, edgeVariants: { top: 0, right: 0, bottom: 0, left: 0 } });
+    parts.push({ id: "top", label: "Tapa", width, height: depth, edgeVariants: { top: 0, right: 0, bottom: 0, left: 0 }, cornerFill: true });
   }
 
   const bedRight = settings.bedWidth - settings.margin;
