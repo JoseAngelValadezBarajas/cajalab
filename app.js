@@ -199,7 +199,13 @@ function bedSvg(settings) {
     <rect class="bed-margin" x="${settings.margin}" y="${settings.margin}" width="${safeWidth}" height="${safeHeight}"/>`;
 }
 
-function makePreviewPanel({ id, label, x, y, width, height, tab, finger, edgeVariants, jointType, cornerFill }) {
+function effectiveJointType(panel) {
+  return panel.plainShape ? "plain" : panel.jointType;
+}
+
+function makePreviewPanel(panel) {
+  const { id, label, x, y, width, height, tab, finger, edgeVariants, cornerFill } = panel;
+  const jointType = effectiveJointType(panel);
   const bounds = panelBounds(width, height, tab, jointType);
   const path = panelPath(width, height, tab, finger, edgeVariants, jointType, cornerFill);
   const tx = x + bounds.ox;
@@ -215,7 +221,9 @@ function makePreviewPanel({ id, label, x, y, width, height, tab, finger, edgeVar
     </g>`;
 }
 
-function makeCutPanel({ id, x, y, width, height, tab, finger, edgeVariants, jointType, cornerFill }) {
+function makeCutPanel(panel) {
+  const { id, x, y, width, height, tab, finger, edgeVariants, cornerFill } = panel;
+  const jointType = effectiveJointType(panel);
   const bounds = panelBounds(width, height, tab, jointType);
   const path = panelPath(width, height, tab, finger, edgeVariants, jointType, cornerFill);
   const tx = x + bounds.ox;
@@ -239,7 +247,9 @@ function makeMarkPanel({ id, x, y, width, height, tab, jointType }) {
     </g>`;
 }
 
-function panelCutSegments({ x, y, width, height, tab, finger, edgeVariants, jointType, cornerFill }) {
+function panelCutSegments(panel) {
+  const { x, y, width, height, tab, finger, edgeVariants, cornerFill } = panel;
+  const jointType = effectiveJointType(panel);
   const bounds = panelBounds(width, height, tab, jointType);
   const tx = x + bounds.ox;
   const ty = y + bounds.oy;
@@ -277,30 +287,62 @@ function lineBank({ x, y, length, count, spacing, orientation }) {
   });
 }
 
+function ventInsertSpec(width, height) {
+  const insertWidth = Math.max(38, width * 0.36);
+  const insertHeight = Math.max(42, height * 0.72);
+  return { width: insertWidth, height: insertHeight };
+}
+
+function ventInsertSegments(panel) {
+  const bounds = panelBounds(panel.width, panel.height, panel.tab, panel.jointType);
+  const tx = panel.x + bounds.ox;
+  const ty = panel.y + bounds.oy;
+  const inset = Math.max(5, Math.min(panel.width, panel.height) * 0.12);
+  const slitCount = 7;
+  const slitLength = Math.max(24, panel.height * 0.5);
+  const spacing = (panel.width - inset * 2) / (slitCount - 1);
+
+  return [
+    ...rectangleSegments(tx, ty, panel.width, panel.height),
+    ...lineBank({
+      x: tx + inset,
+      y: ty + (panel.height - slitLength) / 2,
+      length: slitLength,
+      count: slitCount,
+      spacing,
+      orientation: "vertical",
+    }),
+  ];
+}
+
 function panelTerrariumSegments(panel) {
-  if (!panel.terrariumMode || panel.id !== "top") return [];
+  if (!panel.terrariumMode) return [];
+
+  if (panel.id === "terrariumInsert") return ventInsertSegments(panel);
+  if (panel.id !== "top") return [];
 
   const bounds = panelBounds(panel.width, panel.height, panel.tab, panel.jointType);
   const tx = panel.x + bounds.ox;
   const ty = panel.y + bounds.oy;
 
-  const bankWidth = Math.max(34, panel.width * 0.28);
-  const bankHeight = Math.max(34, panel.height * 0.52);
+  const insert = ventInsertSpec(panel.width, panel.height);
+  const outerWidth = insert.width * 0.82;
+  const outerHeight = insert.height * 0.78;
   const frame = Math.max(4, panel.tab * 1.6);
   const slitCount = 6;
-  const slitLength = bankWidth * 0.72;
-  const slitSpacing = bankHeight / (slitCount + 1);
-  const bankY = ty + (panel.height - bankHeight) / 2;
-  const leftBankX = tx + panel.width * 0.16;
-  const rightBankX = tx + panel.width - panel.width * 0.16 - bankWidth;
+  const slitLength = outerWidth * 0.72;
+  const slitSpacing = outerHeight / (slitCount + 1);
+  const bankY = ty + (panel.height - outerHeight) / 2;
+  const leftBankX = tx + panel.width * 0.18;
+  const rightBankX = tx + panel.width - panel.width * 0.18 - outerWidth;
 
   const makeBank = (x) => {
     const innerX = x + frame;
     const innerY = bankY + frame;
-    const innerW = bankWidth - frame * 2;
-    const innerH = bankHeight - frame * 2;
+    const innerW = outerWidth - frame * 2;
+    const innerH = outerHeight - frame * 2;
     return [
-      ...rectangleSegments(x, bankY, bankWidth, bankHeight),
+      ...rectangleSegments(x, bankY, outerWidth, outerHeight),
       ...rectangleSegments(innerX, innerY, innerW, innerH),
       ...lineBank({
         x: innerX + (innerW - slitLength) / 2,
@@ -378,6 +420,19 @@ function buildLayout(settings) {
     parts.push({ id: "top", label: "Tapa", width, height: depth, edgeVariants: { top: 0, right: 0, bottom: 0, left: 0 }, cornerFill: true });
   }
 
+  if (settings.terrariumMode && !openTop) {
+    const insert = ventInsertSpec(width, depth);
+    parts.push({
+      id: "terrariumInsert",
+      label: "Inserto",
+      width: insert.width,
+      height: insert.height,
+      edgeVariants: { top: 0, right: 0, bottom: 0, left: 0 },
+      cornerFill: false,
+      plainShape: true,
+    });
+  }
+
   const bedRight = settings.bedWidth - settings.margin;
   const bedBottom = settings.bedHeight - settings.margin;
   let x = settings.margin;
@@ -387,7 +442,8 @@ function buildLayout(settings) {
   const oversized = [];
 
   parts.forEach((part) => {
-    const bounds = panelBounds(part.width, part.height, tab, jointType);
+    const partJointType = part.plainShape ? "plain" : jointType;
+    const bounds = panelBounds(part.width, part.height, tab, partJointType);
     const fitsWidth = bounds.w <= settings.bedWidth - settings.margin * 2;
     const fitsHeight = bounds.h <= settings.bedHeight - settings.margin * 2;
 
