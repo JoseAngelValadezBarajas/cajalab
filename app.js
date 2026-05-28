@@ -278,52 +278,42 @@ function lineBank({ x, y, length, count, spacing, orientation }) {
 }
 
 function panelTerrariumSegments(panel) {
-  if (!panel.terrariumMode) return [];
+  if (!panel.terrariumMode || panel.id !== "top") return [];
 
   const bounds = panelBounds(panel.width, panel.height, panel.tab, panel.jointType);
   const tx = panel.x + bounds.ox;
   const ty = panel.y + bounds.oy;
-  const inset = Math.max(10, Math.min(panel.width, panel.height) * 0.16);
-  const frame = Math.max(5, panel.tab * 2.5);
 
-  if (panel.id === "front" || panel.id === "back") {
-    const outerX = tx + inset;
-    const outerY = ty + inset;
-    const outerW = Math.max(20, panel.width - inset * 2);
-    const outerH = Math.max(16, panel.height - inset * 2);
-    const innerX = outerX + frame;
-    const innerY = outerY + frame;
-    const innerW = Math.max(10, outerW - frame * 2);
-    const innerH = Math.max(8, outerH - frame * 2);
+  const bankWidth = Math.max(34, panel.width * 0.28);
+  const bankHeight = Math.max(34, panel.height * 0.52);
+  const frame = Math.max(4, panel.tab * 1.6);
+  const slitCount = 6;
+  const slitLength = bankWidth * 0.72;
+  const slitSpacing = bankHeight / (slitCount + 1);
+  const bankY = ty + (panel.height - bankHeight) / 2;
+  const leftBankX = tx + panel.width * 0.16;
+  const rightBankX = tx + panel.width - panel.width * 0.16 - bankWidth;
+
+  const makeBank = (x) => {
+    const innerX = x + frame;
+    const innerY = bankY + frame;
+    const innerW = bankWidth - frame * 2;
+    const innerH = bankHeight - frame * 2;
     return [
-      ...rectangleSegments(outerX, outerY, outerW, outerH),
+      ...rectangleSegments(x, bankY, bankWidth, bankHeight),
       ...rectangleSegments(innerX, innerY, innerW, innerH),
+      ...lineBank({
+        x: innerX + (innerW - slitLength) / 2,
+        y: innerY + slitSpacing * 0.65,
+        length: slitLength,
+        count: slitCount,
+        spacing: slitSpacing * 0.72,
+        orientation: "horizontal",
+      }),
     ];
-  }
+  };
 
-  if (panel.id === "top") {
-    const slitLength = Math.max(28, panel.width * 0.26);
-    const slitCount = 6;
-    const spacing = Math.max(6, panel.height * 0.09);
-    const bankY = ty + panel.height * 0.28;
-    return [
-      ...lineBank({ x: tx + panel.width * 0.18, y: bankY, length: slitLength, count: slitCount, spacing, orientation: "horizontal" }),
-      ...lineBank({ x: tx + panel.width * 0.58, y: bankY, length: slitLength, count: slitCount, spacing, orientation: "horizontal" }),
-    ];
-  }
-
-  if (panel.id === "left" || panel.id === "right") {
-    const slitLength = Math.max(24, panel.height * 0.34);
-    const slitCount = 6;
-    const spacing = Math.max(5, panel.width * 0.08);
-    const bankX = tx + panel.width * 0.22;
-    return [
-      ...lineBank({ x: bankX, y: ty + panel.height * 0.18, length: slitLength, count: slitCount, spacing, orientation: "vertical" }),
-      ...lineBank({ x: bankX, y: ty + panel.height * 0.58, length: slitLength, count: slitCount, spacing, orientation: "vertical" }),
-    ];
-  }
-
-  return [];
+  return [...makeBank(leftBankX), ...makeBank(rightBankX)];
 }
 
 function segmentKey({ layer, x1, y1, x2, y2 }) {
