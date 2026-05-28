@@ -264,7 +264,8 @@ function panelMarkSegments({ x, y, width, height, tab, jointType }) {
 function buildLayout(settings) {
   const { width, depth, height, thickness, finger, gap, openTop, jointType } = settings;
   const tab = jointType === "finger" ? thickness - settings.kerf / 2 : 0;
-  const layoutGap = settings.joinPieces ? 0 : gap;
+  const layoutGapX = settings.joinPieces ? 0 : gap;
+  const layoutGapY = gap;
   const parts = [
     { id: "front", label: "Frente", width, height, variant: 0 },
     { id: "back", label: "Atras", width, height, variant: 1 },
@@ -292,7 +293,7 @@ function buildLayout(settings) {
 
     if (x > settings.margin && x + bounds.w > bedRight) {
       x = settings.margin;
-      y += rowHeight + layoutGap;
+      y += rowHeight + layoutGapY;
       rowHeight = 0;
     }
 
@@ -301,7 +302,7 @@ function buildLayout(settings) {
     }
 
     placed.push({ ...part, x, y, tab, finger, jointType, outOfBounds: y + bounds.h > bedBottom || !fitsWidth || !fitsHeight });
-    x += bounds.w + layoutGap;
+    x += bounds.w + layoutGapX;
     rowHeight = Math.max(rowHeight, bounds.h);
   });
 
