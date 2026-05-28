@@ -83,7 +83,26 @@ function edgeSegments(length, fingerTarget) {
   return Array.from({ length: count }, (_, index) => ({ start: index * step, end: (index + 1) * step }));
 }
 
-function panelPoints(width, height, tab, finger, variant, jointType) {
+function normalizeEdgeVariants(edgeVariants) {
+  if (typeof edgeVariants === "number") {
+    return {
+      top: edgeVariants,
+      right: edgeVariants + 1,
+      bottom: edgeVariants,
+      left: edgeVariants + 1,
+    };
+  }
+
+  return {
+    top: 0,
+    right: 1,
+    bottom: 0,
+    left: 1,
+    ...edgeVariants,
+  };
+}
+
+function panelPoints(width, height, tab, finger, edgeVariants, jointType) {
   if (jointType === "plain") {
     return [
       [0, 0],
@@ -93,6 +112,7 @@ function panelPoints(width, height, tab, finger, variant, jointType) {
     ];
   }
 
+  const variants = normalizeEdgeVariants(edgeVariants);
   const points = [];
   const push = (x, y) => points.push([rounded(x), rounded(y)]);
   const addEdge = (side, sign, firstTab) => {
@@ -125,15 +145,15 @@ function panelPoints(width, height, tab, finger, variant, jointType) {
   };
 
   push(0, 0);
-  addEdge("top", -1, variant);
-  addEdge("right", 1, variant + 1);
-  addEdge("bottom", 1, variant);
-  addEdge("left", -1, variant + 1);
+  addEdge("top", -1, variants.top);
+  addEdge("right", 1, variants.right);
+  addEdge("bottom", 1, variants.bottom);
+  addEdge("left", -1, variants.left);
   return points;
 }
 
-function panelPath(width, height, tab, finger, variant, jointType) {
-  const points = panelPoints(width, height, tab, finger, variant, jointType);
+function panelPath(width, height, tab, finger, edgeVariants, jointType) {
+  const points = panelPoints(width, height, tab, finger, edgeVariants, jointType);
   return `M ${points.map((point) => point.join(" ")).join(" L ")} Z`;
 }
 
@@ -166,9 +186,9 @@ function bedSvg(settings) {
     <rect class="bed-margin" x="${settings.margin}" y="${settings.margin}" width="${safeWidth}" height="${safeHeight}"/>`;
 }
 
-function makePreviewPanel({ id, label, x, y, width, height, tab, finger, variant, jointType }) {
+function makePreviewPanel({ id, label, x, y, width, height, tab, finger, edgeVariants, jointType }) {
   const bounds = panelBounds(width, height, tab, jointType);
-  const path = panelPath(width, height, tab, finger, variant, jointType);
+  const path = panelPath(width, height, tab, finger, edgeVariants, jointType);
   const tx = x + bounds.ox;
   const ty = y + bounds.oy;
   return `
@@ -182,9 +202,9 @@ function makePreviewPanel({ id, label, x, y, width, height, tab, finger, variant
     </g>`;
 }
 
-function makeCutPanel({ id, x, y, width, height, tab, finger, variant, jointType }) {
+function makeCutPanel({ id, x, y, width, height, tab, finger, edgeVariants, jointType }) {
   const bounds = panelBounds(width, height, tab, jointType);
-  const path = panelPath(width, height, tab, finger, variant, jointType);
+  const path = panelPath(width, height, tab, finger, edgeVariants, jointType);
   const tx = x + bounds.ox;
   const ty = y + bounds.oy;
   return `
@@ -206,11 +226,11 @@ function makeMarkPanel({ id, x, y, width, height, tab, jointType }) {
     </g>`;
 }
 
-function panelCutSegments({ x, y, width, height, tab, finger, variant, jointType }) {
+function panelCutSegments({ x, y, width, height, tab, finger, edgeVariants, jointType }) {
   const bounds = panelBounds(width, height, tab, jointType);
   const tx = x + bounds.ox;
   const ty = y + bounds.oy;
-  const points = panelPoints(width, height, tab, finger, variant, jointType)
+  const points = panelPoints(width, height, tab, finger, edgeVariants, jointType)
     .map(([px, py]) => [rounded(px + tx), rounded(py + ty)]);
 
   return points.map((point, index) => {
@@ -267,15 +287,15 @@ function buildLayout(settings) {
   const layoutGapX = settings.joinPieces ? 0 : gap;
   const layoutGapY = gap;
   const parts = [
-    { id: "front", label: "Frente", width, height, variant: 0 },
-    { id: "back", label: "Atras", width, height, variant: 1 },
-    { id: "left", label: "Izquierda", width: depth, height, variant: 1 },
-    { id: "right", label: "Derecha", width: depth, height, variant: 0 },
-    { id: "bottom", label: "Base", width, height: depth, variant: 0 },
+    { id: "front", label: "Frente", width, height, edgeVariants: { top: 1, right: 0, bottom: 1, left: 0 } },
+    { id: "back", label: "Atras", width, height, edgeVariants: { top: 1, right: 0, bottom: 1, left: 0 } },
+    { id: "left", label: "Izquierda", width: depth, height, edgeVariants: { top: 1, right: 1, bottom: 1, left: 1 } },
+    { id: "right", label: "Derecha", width: depth, height, edgeVariants: { top: 1, right: 1, bottom: 1, left: 1 } },
+    { id: "bottom", label: "Base", width, height: depth, edgeVariants: { top: 0, right: 0, bottom: 0, left: 0 } },
   ];
 
   if (!openTop) {
-    parts.push({ id: "top", label: "Tapa", width, height: depth, variant: 1 });
+    parts.push({ id: "top", label: "Tapa", width, height: depth, edgeVariants: { top: 0, right: 0, bottom: 0, left: 0 } });
   }
 
   const bedRight = settings.bedWidth - settings.margin;
@@ -430,7 +450,7 @@ function render() {
   svgSize.value = `${Math.ceil(layout.canvasWidth)} x ${Math.ceil(layout.canvasHeight)} mm`;
   cutLength.textContent = `${estimateCutLength(layout, settings).toFixed(2)} m`;
   layoutStatus.textContent = layout.fitsBed
-    ? `Cabe en cama ${settings.bedWidth} x ${settings.bedHeight} mm${settings.joinPieces ? " · piezas juntas" : ""}`
+    ? `Cabe en cama ${settings.bedWidth} x ${settings.bedHeight} mm${settings.joinPieces ? " - piezas juntas" : ""}`
     : `No cabe: ${layout.oversized.join(", ")}`;
   cutLength.parentElement.classList.toggle("warning", !layout.fitsBed);
   applyZoom();
