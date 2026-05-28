@@ -16,6 +16,7 @@ const inputs = {
   bedWidth: $("bedWidth"),
   bedHeight: $("bedHeight"),
   margin: $("margin"),
+  joinPieces: $("joinPieces"),
 };
 
 const svgStage = $("svgStage");
@@ -61,6 +62,7 @@ function readSettings() {
     bedWidth: clampNumber(inputs.bedWidth.value, 80, 1600),
     bedHeight: clampNumber(inputs.bedHeight.value, 80, 1200),
     margin: clampNumber(inputs.margin.value, 0, 80),
+    joinPieces: inputs.joinPieces.checked,
   };
 }
 
@@ -217,6 +219,30 @@ function panelCutSegments({ x, y, width, height, tab, finger, variant, jointType
   });
 }
 
+function segmentKey({ layer, x1, y1, x2, y2 }) {
+  const a = `${rounded(x1)},${rounded(y1)}`;
+  const b = `${rounded(x2)},${rounded(y2)}`;
+  return a < b ? `${layer}:${a}:${b}` : `${layer}:${b}:${a}`;
+}
+
+function uniqueSegments(segments) {
+  const unique = new Map();
+  segments.forEach((segment) => {
+    unique.set(segmentKey(segment), segment);
+  });
+  return Array.from(unique.values());
+}
+
+function cutSegmentsForLayout(layout, settings) {
+  const segments = layout.placed.flatMap(panelCutSegments);
+  return settings.joinPieces ? uniqueSegments(segments) : segments;
+}
+
+function svgLine({ layer, x1, y1, x2, y2 }) {
+  const className = layer === "CUT" ? "cut-line" : "fold-line";
+  return `<line class="${className}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+}
+
 function panelMarkSegments({ x, y, width, height, tab, jointType }) {
   const bounds = panelBounds(width, height, tab, jointType);
   const tx = x + bounds.ox;
@@ -238,6 +264,7 @@ function panelMarkSegments({ x, y, width, height, tab, jointType }) {
 function buildLayout(settings) {
   const { width, depth, height, thickness, finger, gap, openTop, jointType } = settings;
   const tab = jointType === "finger" ? thickness - settings.kerf / 2 : 0;
+  const layoutGap = settings.joinPieces ? 0 : gap;
   const parts = [
     { id: "front", label: "Frente", width, height, variant: 0 },
     { id: "back", label: "Atras", width, height, variant: 1 },
@@ -265,7 +292,7 @@ function buildLayout(settings) {
 
     if (x > settings.margin && x + bounds.w > bedRight) {
       x = settings.margin;
-      y += rowHeight + gap;
+      y += rowHeight + layoutGap;
       rowHeight = 0;
     }
 
@@ -274,7 +301,7 @@ function buildLayout(settings) {
     }
 
     placed.push({ ...part, x, y, tab, finger, jointType, outOfBounds: y + bounds.h > bedBottom || !fitsWidth || !fitsHeight });
-    x += bounds.w + gap;
+    x += bounds.w + layoutGap;
     rowHeight = Math.max(rowHeight, bounds.h);
   });
 
@@ -288,11 +315,13 @@ function buildLayout(settings) {
   };
 }
 
-function estimateCutLength(settings) {
-  const panels = settings.openTop ? 5 : 6;
-  const basic = 2 * (settings.width + settings.depth) + 4 * settings.height;
-  const multiplier = settings.jointType === "finger" ? 1.18 : 1;
-  return (basic * panels * multiplier) / 6000;
+function estimateCutLength(layout, settings) {
+  const cutSegments = cutSegmentsForLayout(layout, settings);
+  const markSegments = settings.includeMarks ? layout.placed.flatMap(panelMarkSegments) : [];
+  const totalMm = [...cutSegments, ...markSegments].reduce((sum, segment) => {
+    return sum + Math.hypot(segment.x2 - segment.x1, segment.y2 - segment.y1);
+  }, 0);
+  return totalMm / 1000;
 }
 
 function dxfNumber(value) {
@@ -334,7 +363,7 @@ function buildLayerTable(settings) {
 }
 
 function buildDxf(layout, settings) {
-  const cutSegments = layout.placed.flatMap(panelCutSegments);
+  const cutSegments = cutSegmentsForLayout(layout, settings);
   const markSegments = settings.includeMarks ? layout.placed.flatMap(panelMarkSegments) : [];
   const segments = [...cutSegments, ...markSegments];
 
@@ -368,8 +397,8 @@ function render() {
   const layout = buildLayout(settings);
   const cutColor = cutStroke(settings.cutColor);
   const panels = layout.placed.map(makePreviewPanel).join("");
-  const cutPanels = layout.placed.map(makeCutPanel).join("");
-  const markPanels = settings.includeMarks ? layout.placed.map(makeMarkPanel).join("") : "";
+  const cutPanels = cutSegmentsForLayout(layout, settings).map(svgLine).join("");
+  const markPanels = settings.includeMarks ? layout.placed.flatMap(panelMarkSegments).map(svgLine).join("") : "";
 
   previewSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${rounded(layout.canvasWidth)} ${rounded(layout.canvasHeight)}" width="${rounded(layout.canvasWidth)}mm" height="${rounded(layout.canvasHeight)}mm">
   <style>
@@ -388,17 +417,19 @@ function render() {
     .cut-line{fill:none;stroke:${cutColor};stroke-width:0.35;vector-effect:non-scaling-stroke}
     .fold-line{stroke:#2b65b1;stroke-width:0.25;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
   </style>
-  ${cutPanels}
-  ${markPanels}
+  <g>
+    ${cutPanels}
+    ${markPanels}
+  </g>
 </svg>`;
   currentDxf = buildDxf(layout, settings);
 
   svgStage.dataset.cutColor = settings.cutColor;
   svgPan.innerHTML = drawingMode === "preview" ? previewSvg : currentSvg;
   svgSize.value = `${Math.ceil(layout.canvasWidth)} x ${Math.ceil(layout.canvasHeight)} mm`;
-  cutLength.textContent = `${estimateCutLength(settings).toFixed(2)} m`;
+  cutLength.textContent = `${estimateCutLength(layout, settings).toFixed(2)} m`;
   layoutStatus.textContent = layout.fitsBed
-    ? `Cabe en cama ${settings.bedWidth} x ${settings.bedHeight} mm`
+    ? `Cabe en cama ${settings.bedWidth} x ${settings.bedHeight} mm${settings.joinPieces ? " · piezas juntas" : ""}`
     : `No cabe: ${layout.oversized.join(", ")}`;
   cutLength.parentElement.classList.toggle("warning", !layout.fitsBed);
   applyZoom();
