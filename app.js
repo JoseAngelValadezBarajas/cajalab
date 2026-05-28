@@ -301,16 +301,19 @@ function ventInsertSpec(width, height) {
 }
 
 function ventInsertSegments(panel) {
-  const bounds = panelBounds(panel.width, panel.height, panel.tab, panel.jointType);
+  const bounds = panelBounds(panel.width, panel.height, panel.tab, effectiveJointType(panel));
   const tx = panel.x + bounds.ox;
   const ty = panel.y + bounds.oy;
+  const openingWidth = panel.openingWidth || panel.width;
+  const openingHeight = panel.openingHeight || panel.height;
+  const openingX = tx + (panel.width - openingWidth) / 2;
+  const openingY = ty + (panel.height - openingHeight) / 2;
   const slitCount = 6;
-  const slitLength = panel.width * 0.28;
-  const usableHeight = panel.height * 0.64;
-  const slitSpacing = usableHeight / (slitCount + 1);
-  const slitY = ty + (panel.height - usableHeight) / 2 + slitSpacing;
-  const leftSlitX = tx + panel.width * 0.2;
-  const rightSlitX = tx + panel.width * 0.6;
+  const slitLength = openingWidth * 0.28;
+  const slitSpacing = openingHeight / (slitCount + 1);
+  const slitY = openingY + slitSpacing;
+  const leftSlitX = openingX + openingWidth * 0.16;
+  const rightSlitX = openingX + openingWidth * 0.56;
 
   return [
     ...lineBank({
@@ -338,7 +341,7 @@ function panelTerrariumSegments(panel) {
   if (panel.id === "terrariumInsert") return ventInsertSegments(panel);
   if (panel.id !== "top") return [];
 
-  const bounds = panelBounds(panel.width, panel.height, panel.tab, panel.jointType);
+  const bounds = panelBounds(panel.width, panel.height, panel.tab, effectiveJointType(panel));
   const tx = panel.x + bounds.ox;
   const ty = panel.y + bounds.oy;
 
@@ -430,6 +433,8 @@ function buildLayout(settings) {
       label: "Inserto",
       width: insert.width,
       height: insert.height,
+      openingWidth: insert.openingWidth,
+      openingHeight: insert.openingHeight,
       edgeVariants: { top: 0, right: 0, bottom: 0, left: 0 },
       cornerFill: false,
       plainShape: true,
