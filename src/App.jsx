@@ -54,7 +54,12 @@ const translations = {
     type: "Tipo",
     fingerJoint: "Dedos intercalados",
     plainEdge: "Canto recto",
+    tSlotJoint: "T-slot",
     fingerSize: "Tamano de dedo",
+    screwDiameter: "Diametro tornillo",
+    nutWidth: "Ancho tuerca",
+    slotDepth: "Profundidad slot",
+    slotSpacing: "Separacion slots",
     box: "Caja",
     openTop: "Sin tapa",
     layoutGap: "Separacion del plano",
@@ -63,6 +68,11 @@ const translations = {
     bedHeight: "Alto cama",
     materialMargin: "Margen material",
     joinPieces: "Juntar en fila",
+    autoNest: "Nesting automatico",
+    allowRotation: "Rotar piezas",
+    cncMode: "Modo CNC",
+    dogbones: "Dogbones",
+    toolDiameter: "Diametro herramienta",
     terrarium: "Preparar para terrario",
     preset: "Preset",
     cutColor: "Color de corte",
@@ -97,6 +107,8 @@ const translations = {
     largeFingers: "Tamano de dedo demasiado grande para piezas pequenas.",
     oddKerf: "Kerf fuera del rango comun para corte laser.",
     thickLine: "Grosor de linea alto; algunas maquinas esperan trazos finos.",
+    tslotSmall: "Los slots son pequenos para el tornillo o tuerca configurados.",
+    dogboneLaser: "Dogbones activos: confirma que estas cortando en CNC/router.",
   },
   en: {
     appTitle: "Laser cut box generator",
@@ -141,7 +153,12 @@ const translations = {
     type: "Type",
     fingerJoint: "Finger joints",
     plainEdge: "Plain edge",
+    tSlotJoint: "T-slot",
     fingerSize: "Finger size",
+    screwDiameter: "Screw diameter",
+    nutWidth: "Nut width",
+    slotDepth: "Slot depth",
+    slotSpacing: "Slot spacing",
     box: "Box",
     openTop: "Open top",
     layoutGap: "Layout gap",
@@ -150,6 +167,11 @@ const translations = {
     bedHeight: "Bed height",
     materialMargin: "Material margin",
     joinPieces: "Join in row",
+    autoNest: "Auto nesting",
+    allowRotation: "Rotate parts",
+    cncMode: "CNC mode",
+    dogbones: "Dogbones",
+    toolDiameter: "Tool diameter",
     terrarium: "Prepare terrarium",
     preset: "Preset",
     cutColor: "Cut color",
@@ -184,6 +206,8 @@ const translations = {
     largeFingers: "Finger size is too large for small panels.",
     oddKerf: "Kerf is outside the common laser cutting range.",
     thickLine: "Line width is high; some machines expect fine strokes.",
+    tslotSmall: "Slots are small for the configured screw or nut.",
+    dogboneLaser: "Dogbones are active: confirm you are cutting on a CNC/router.",
   },
 };
 
@@ -200,6 +224,15 @@ const defaultSettings = {
   gap: 12,
   openTop: false,
   jointType: "finger",
+  screwDiameter: 3,
+  nutWidth: 6,
+  slotDepth: 10,
+  slotSpacing: 45,
+  autoNest: false,
+  allowRotation: true,
+  cncMode: false,
+  dogbones: false,
+  toolDiameter: 3.175,
   exportPreset: "lightburn",
   cutColor: "#ff0000",
   scoreColor: "#0000ff",
@@ -273,6 +306,11 @@ const numberLimits = {
   margin: [0, 80],
   cutLineWidth: [0.01, 2],
   scoreLineWidth: [0.01, 2],
+  screwDiameter: [1, 12],
+  nutWidth: [2, 20],
+  slotDepth: [3, 40],
+  slotSpacing: [12, 160],
+  toolDiameter: [0.5, 20],
 };
 
 function toDisplayUnit(value, unit) {
@@ -396,6 +434,16 @@ function validateFabrication(settings, layout, t) {
 
   if (settings.cutLineWidth > 0.35 || settings.scoreLineWidth > 0.35) {
     warnings.push(t.thickLine);
+    checks[3].ok = false;
+  }
+
+  if (settings.jointType === "tslot" && (settings.slotDepth < settings.screwDiameter * 1.8 || settings.nutWidth < settings.screwDiameter * 1.4)) {
+    warnings.push(t.tslotSmall);
+    checks[1].ok = false;
+  }
+
+  if (settings.dogbones && !settings.cncMode) {
+    warnings.push(t.dogboneLaser);
     checks[3].ok = false;
   }
 
@@ -966,10 +1014,19 @@ export default function App() {
             <select value={settings.jointType} onChange={(event) => setField("jointType", event.target.value)}>
               <option value="finger">{t.fingerJoint}</option>
               <option value="plain">{t.plainEdge}</option>
+              <option value="tslot">{t.tSlotJoint}</option>
             </select>
           </label>
           <NumberField label={t.fingerSize} name="finger" value={settings.finger} min="4" max="80" unit={settings.unit} onChange={setField} />
           <NumberField label="Kerf" name="kerf" value={settings.kerf} min="0" max="1.5" step="0.01" unit={settings.unit} onChange={setField} />
+          {settings.jointType === "tslot" && (
+            <>
+              <NumberField label={t.screwDiameter} name="screwDiameter" value={settings.screwDiameter} min="1" max="12" step="0.1" unit={settings.unit} onChange={setField} />
+              <NumberField label={t.nutWidth} name="nutWidth" value={settings.nutWidth} min="2" max="20" step="0.1" unit={settings.unit} onChange={setField} />
+              <NumberField label={t.slotDepth} name="slotDepth" value={settings.slotDepth} min="3" max="40" step="0.1" unit={settings.unit} onChange={setField} />
+              <NumberField label={t.slotSpacing} name="slotSpacing" value={settings.slotSpacing} min="12" max="160" unit={settings.unit} onChange={setField} />
+            </>
+          )}
         </AccordionSection>
 
         <AccordionSection id="box" title={t.box} open={openSections.box} onToggle={toggleSection}>
@@ -1001,6 +1058,14 @@ export default function App() {
           <NumberField label={t.bedWidth} name="bedWidth" value={settings.bedWidth} min="80" max="1600" unit={settings.unit} onChange={setField} />
           <NumberField label={t.bedHeight} name="bedHeight" value={settings.bedHeight} min="80" max="1200" unit={settings.unit} onChange={setField} />
           <NumberField label={t.materialMargin} name="margin" value={settings.margin} min="0" max="80" unit={settings.unit} onChange={setField} />
+          <label className="switch-row">
+            {t.autoNest}
+            <input className="toggle-input" type="checkbox" checked={settings.autoNest} onChange={(event) => setCheckbox("autoNest", event.target.checked)} />
+          </label>
+          <label className="switch-row">
+            {t.allowRotation}
+            <input className="toggle-input" type="checkbox" checked={settings.allowRotation} onChange={(event) => setCheckbox("allowRotation", event.target.checked)} />
+          </label>
           <label className="switch-row">
             {t.joinPieces}
             <input className="toggle-input" type="checkbox" checked={settings.joinPieces} onChange={(event) => setCheckbox("joinPieces", event.target.checked)} />
@@ -1047,6 +1112,17 @@ export default function App() {
             {t.internalMarks}
             <input className="toggle-input" type="checkbox" checked={settings.includeMarks} onChange={(event) => setCheckbox("includeMarks", event.target.checked)} />
           </label>
+          <label className="switch-row">
+            {t.cncMode}
+            <input className="toggle-input" type="checkbox" checked={settings.cncMode} onChange={(event) => setCheckbox("cncMode", event.target.checked)} />
+          </label>
+          <label className="switch-row">
+            {t.dogbones}
+            <input className="toggle-input" type="checkbox" checked={settings.dogbones} onChange={(event) => setCheckbox("dogbones", event.target.checked)} />
+          </label>
+          {settings.cncMode && (
+            <NumberField label={t.toolDiameter} name="toolDiameter" value={settings.toolDiameter} min="0.5" max="20" step="0.1" unit={settings.unit} onChange={setField} />
+          )}
           <div className="file-actions">
             <button className="tool-button" type="button" onClick={() => importInputRef.current.click()}>
               <Upload />

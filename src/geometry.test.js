@@ -49,4 +49,32 @@ describe("box geometry", () => {
   it("uses dimensions in exported file names", () => {
     expect(makeFileName(baseSettings, "svg")).toBe("cajalab-180x120x80mm.svg");
   });
+
+  it("adds T-slot cut geometry to DXF exports", () => {
+    const artifacts = buildArtifacts({
+      ...baseSettings,
+      jointType: "tslot",
+      screwDiameter: 3,
+      nutWidth: 6,
+      slotDepth: 10,
+      slotSpacing: 45,
+    });
+
+    expect(artifacts.dxf).toContain("CIRCLE");
+  });
+
+  it("can rotate parts when automatic nesting allows it", () => {
+    const layout = buildLayout({
+      ...baseSettings,
+      bedWidth: 140,
+      bedHeight: 260,
+      width: 120,
+      depth: 70,
+      height: 55,
+      autoNest: true,
+      allowRotation: true,
+    });
+
+    expect(layout.placed.some((panel) => panel.rotated)).toBe(true);
+  });
 });

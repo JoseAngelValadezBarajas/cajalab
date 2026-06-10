@@ -149,6 +149,29 @@ function panelBounds(width, height, tab, jointType) {
   return { w: width + tab * 2, h: height + tab * 2, ox: tab, oy: tab };
 }
 
+function placedBounds(panel) {
+  const bounds = panelBounds(panel.width, panel.height, panel.tab, effectiveJointType(panel));
+  if (panel.rotated) {
+    return { w: bounds.h, h: bounds.w, ox: bounds.oy, oy: bounds.ox };
+  }
+  return bounds;
+}
+
+function transformPanelPoint(panel, px, py) {
+  const bounds = panelBounds(panel.width, panel.height, panel.tab, effectiveJointType(panel));
+  if (panel.rotated) {
+    return [
+      rounded(panel.x + bounds.h - (py + bounds.oy)),
+      rounded(panel.y + px + bounds.ox),
+    ];
+  }
+
+  return [
+    rounded(panel.x + px + bounds.ox),
+    rounded(panel.y + py + bounds.oy),
+  ];
+}
+
 function bedSvg(settings) {
   const safeWidth = Math.max(0, settings.bedWidth - settings.margin * 2);
   const safeHeight = Math.max(0, settings.bedHeight - settings.margin * 2);
@@ -164,12 +187,13 @@ function effectiveJointType(panel) {
 function makePreviewPanel(panel) {
   const { id, label, x, y, width, height, tab, finger, edgeVariants, cornerFill } = panel;
   const jointType = effectiveJointType(panel);
-  const bounds = panelBounds(width, height, tab, jointType);
   const path = panelPath(width, height, tab, finger, edgeVariants, jointType, cornerFill);
-  const tx = x + bounds.ox;
-  const ty = y + bounds.oy;
+  const bounds = panelBounds(width, height, tab, jointType);
+  const tx = panel.rotated ? x + bounds.h - bounds.oy : x + bounds.ox;
+  const ty = panel.rotated ? y + bounds.ox : y + bounds.oy;
+  const rotation = panel.rotated ? ` rotate(90)` : "";
   return `
-    <g id="${id}" transform="translate(${rounded(tx)} ${rounded(ty)})">
+    <g id="${id}" transform="translate(${rounded(tx)} ${rounded(ty)})${rotation}">
       <path class="cut-line" d="${path}"/>
       <line class="fold-line" x1="0" y1="0" x2="${width}" y2="0"/>
       <line class="fold-line" x1="${width}" y1="0" x2="${width}" y2="${height}"/>
@@ -182,16 +206,17 @@ function makePreviewPanel(panel) {
 function panelCutSegments(panel) {
   const { x, y, width, height, tab, finger, edgeVariants, cornerFill } = panel;
   const jointType = effectiveJointType(panel);
-  const bounds = panelBounds(width, height, tab, jointType);
-  const tx = x + bounds.ox;
-  const ty = y + bounds.oy;
   const points = panelPoints(width, height, tab, finger, edgeVariants, jointType, cornerFill)
-    .map(([px, py]) => [rounded(px + tx), rounded(py + ty)]);
+    .map(([px, py]) => transformPanelPoint(panel, px, py));
 
   return points.map((point, index) => {
     const next = points[(index + 1) % points.length];
     return { layer: "CUT", x1: point[0], y1: point[1], x2: next[0], y2: next[1] };
   });
+}
+
+function circleShape(x, y, radius, layer = "CUT") {
+  return { type: "circle", layer, cx: rounded(x), cy: rounded(y), r: rounded(radius) };
 }
 
 function rectangleSegments(x, y, width, height, layer = "CUT") {
@@ -207,6 +232,25 @@ function rectangleSegments(x, y, width, height, layer = "CUT") {
     x2: rounded(segment.x2),
     y2: rounded(segment.y2),
   }));
+}
+
+function panelRectangleSegments(panel, x, y, width, height, layer = "CUT") {
+  const corners = [
+    transformPanelPoint(panel, x, y),
+    transformPanelPoint(panel, x + width, y),
+    transformPanelPoint(panel, x + width, y + height),
+    transformPanelPoint(panel, x, y + height),
+  ];
+
+  return corners.map((point, index) => {
+    const next = corners[(index + 1) % corners.length];
+    return { type: "line", layer, x1: point[0], y1: point[1], x2: next[0], y2: next[1] };
+  });
+}
+
+function panelCircle(panel, x, y, radius, layer = "CUT") {
+  const [cx, cy] = transformPanelPoint(panel, x, y);
+  return circleShape(cx, cy, radius, layer);
 }
 
 function lineBank({ x, y, length, count, spacing, orientation }) {
@@ -280,6 +324,50 @@ function panelTerrariumSegments(panel) {
   ];
 }
 
+function panelTSlotSegments(panel, settings) {
+  if (settings.jointType !== "tslot") return [];
+  if (!["front", "back"].includes(panel.id)) return [];
+
+  const screw = settings.screwDiameter || 3;
+  const nutWidth = settings.nutWidth || 6;
+  const slotDepth = settings.slotDepth || 10;
+  const spacing = Math.max(settings.slotSpacing || 45, slotDepth * 2);
+  const edgeInset = Math.max(panel.tab + slotDepth * 0.6, settings.thickness * 2);
+  const usableHeight = Math.max(0, panel.height - edgeInset * 2);
+  const count = Math.max(1, Math.floor(usableHeight / spacing) + 1);
+  const step = count === 1 ? 0 : usableHeight / (count - 1);
+  const xPositions = [settings.thickness * 1.8, panel.width - settings.thickness * 1.8];
+  const shapes = [];
+
+  xPositions.forEach((x) => {
+    for (let index = 0; index < count; index += 1) {
+      const y = edgeInset + step * index;
+      shapes.push(panelCircle(panel, x, y, screw / 2));
+      shapes.push(...panelRectangleSegments(panel, x - nutWidth / 2, y - screw / 2, nutWidth, screw));
+    }
+  });
+
+  return shapes;
+}
+
+function panelDogboneShapes(panel, settings) {
+  if (!settings.cncMode || !settings.dogbones || effectiveJointType(panel) === "plain") return [];
+
+  const radius = Math.max(0.1, (settings.toolDiameter || 3.175) / 2);
+  const jointType = effectiveJointType(panel);
+  const points = panelPoints(panel.width, panel.height, panel.tab, panel.finger, panel.edgeVariants, jointType, panel.cornerFill);
+  const shapes = [];
+
+  points.forEach(([x, y], index) => {
+    if (index % 3 !== 0) return;
+    const onPanelEdge = x === 0 || y === 0 || x === panel.width || y === panel.height;
+    if (!onPanelEdge) return;
+    shapes.push(panelCircle(panel, x, y, radius));
+  });
+
+  return shapes;
+}
+
 function segmentKey({ layer, x1, y1, x2, y2 }) {
   const a = `${rounded(x1)},${rounded(y1)}`;
   const b = `${rounded(x2)},${rounded(y2)}`;
@@ -289,6 +377,10 @@ function segmentKey({ layer, x1, y1, x2, y2 }) {
 function uniqueSegments(segments) {
   const unique = new Map();
   segments.forEach((segment) => {
+    if (segment.type === "circle") {
+      unique.set(`${segment.layer}:circle:${segment.cx},${segment.cy},${segment.r}`, segment);
+      return;
+    }
     unique.set(segmentKey(segment), segment);
   });
   return Array.from(unique.values());
@@ -298,6 +390,8 @@ function cutSegmentsForLayout(layout, settings) {
   const segments = layout.placed.flatMap((panel) => [
     ...panelCutSegments(panel),
     ...panelTerrariumSegments(panel),
+    ...panelTSlotSegments(panel, settings),
+    ...panelDogboneShapes(panel, settings),
   ]);
   return settings.joinPieces ? uniqueSegments(segments) : segments;
 }
@@ -305,6 +399,14 @@ function cutSegmentsForLayout(layout, settings) {
 function svgLine({ layer, x1, y1, x2, y2 }) {
   const className = layer === "CUT" ? "cut-line" : "score-line";
   return `<line class="${className}" data-layer="${layer}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+}
+
+function svgShape(shape) {
+  if (shape.type === "circle") {
+    const className = shape.layer === "CUT" ? "cut-line" : "score-line";
+    return `<circle class="${className}" data-layer="${shape.layer}" cx="${shape.cx}" cy="${shape.cy}" r="${shape.r}"/>`;
+  }
+  return svgLine(shape);
 }
 
 function panelMarkSegments({ x, y, width, height, tab, jointType }) {
@@ -346,7 +448,7 @@ export function buildLayout(settings) {
         top: "Tapa",
         insert: "Inserto",
       };
-  const tab = jointType === "finger" ? thickness - settings.kerf / 2 : 0;
+  const tab = jointType === "finger" || jointType === "tslot" ? thickness - settings.kerf / 2 : 0;
   const layoutGapX = settings.joinPieces ? 0 : gap;
   const layoutGapY = gap;
   const parts = [
@@ -384,11 +486,17 @@ export function buildLayout(settings) {
   const placed = [];
   const oversized = [];
 
-  parts.forEach((part) => {
+  const placePart = (part) => {
     const partJointType = part.plainShape ? "plain" : jointType;
-    const bounds = panelBounds(part.width, part.height, tab, partJointType);
-    const fitsWidth = bounds.w <= settings.bedWidth - settings.margin * 2;
-    const fitsHeight = bounds.h <= settings.bedHeight - settings.margin * 2;
+    let rotated = false;
+    let bounds = panelBounds(part.width, part.height, tab, partJointType);
+    const safeWidth = settings.bedWidth - settings.margin * 2;
+    const safeHeight = settings.bedHeight - settings.margin * 2;
+
+    if (settings.allowRotation && bounds.w > safeWidth && bounds.h <= safeWidth && bounds.w <= safeHeight) {
+      rotated = true;
+      bounds = { w: bounds.h, h: bounds.w, ox: bounds.oy, oy: bounds.ox };
+    }
 
     if (x > settings.margin && x + bounds.w > bedRight) {
       x = settings.margin;
@@ -396,14 +504,35 @@ export function buildLayout(settings) {
       rowHeight = 0;
     }
 
+    if (settings.allowRotation && !rotated && x + bounds.w > bedRight) {
+      const rotatedBounds = { w: bounds.h, h: bounds.w, ox: bounds.oy, oy: bounds.ox };
+      if (x + rotatedBounds.w <= bedRight && y + rotatedBounds.h <= bedBottom) {
+        rotated = true;
+        bounds = rotatedBounds;
+      }
+    }
+
+    const fitsWidth = bounds.w <= safeWidth;
+    const fitsHeight = bounds.h <= safeHeight;
+
     if (!fitsWidth || !fitsHeight || y + bounds.h > bedBottom) {
       oversized.push(part.label);
     }
 
-    placed.push({ ...part, x, y, tab, finger, jointType, terrariumMode: settings.terrariumMode, outOfBounds: y + bounds.h > bedBottom || !fitsWidth || !fitsHeight });
+    placed.push({ ...part, x, y, tab, finger, jointType, rotated, terrariumMode: settings.terrariumMode, outOfBounds: y + bounds.h > bedBottom || !fitsWidth || !fitsHeight });
     x += bounds.w + layoutGapX;
     rowHeight = Math.max(rowHeight, bounds.h);
-  });
+  };
+
+  const sortedParts = settings.autoNest
+    ? [...parts].sort((a, b) => {
+        const aBounds = panelBounds(a.width, a.height, tab, a.plainShape ? "plain" : jointType);
+        const bBounds = panelBounds(b.width, b.height, tab, b.plainShape ? "plain" : jointType);
+        return Math.max(bBounds.w, bBounds.h) - Math.max(aBounds.w, aBounds.h);
+      })
+    : parts;
+
+  sortedParts.forEach(placePart);
 
   return {
     placed,
@@ -419,6 +548,7 @@ function estimateCutLength(layout, settings) {
   const cutSegments = cutSegmentsForLayout(layout, settings);
   const markSegments = settings.includeMarks ? layout.placed.flatMap(panelMarkSegments) : [];
   const totalMm = [...cutSegments, ...markSegments].reduce((sum, segment) => {
+    if (segment.type === "circle") return sum + Math.PI * 2 * segment.r;
     return sum + Math.hypot(segment.x2 - segment.x1, segment.y2 - segment.y1);
   }, 0);
   return totalMm / 1000;
@@ -440,6 +570,19 @@ function makeDxfLine({ layer, x1, y1, x2, y2 }, canvasHeight, settings) {
     "11", dxfNumber(x2),
     "21", dxfNumber(canvasHeight - y2),
     "31", "0",
+  ].join("\n");
+}
+
+function makeDxfCircle({ layer, cx, cy, r }, canvasHeight, settings) {
+  const color = layer === "CUT" ? dxfColor(settings.cutColor) : dxfColor(settings.scoreColor || "blue");
+  return [
+    "0", "CIRCLE",
+    "8", layer,
+    "62", color,
+    "10", dxfNumber(cx),
+    "20", dxfNumber(canvasHeight - cy),
+    "30", "0",
+    "40", dxfNumber(r),
   ].join("\n");
 }
 
@@ -466,7 +609,10 @@ function buildDxf(layout, settings) {
   const cutSegments = cutSegmentsForLayout(layout, settings);
   const markSegments = settings.includeMarks ? layout.placed.flatMap(panelMarkSegments) : [];
   const segments = [...cutSegments, ...markSegments];
-  const lineEntities = segments.map((segment) => makeDxfLine(segment, layout.canvasHeight, settings)).join("\n");
+  const lineEntities = segments.map((segment) => {
+    if (segment.type === "circle") return makeDxfCircle(segment, layout.canvasHeight, settings);
+    return makeDxfLine(segment, layout.canvasHeight, settings);
+  }).join("\n");
 
   return [
     "0", "SECTION",
@@ -497,7 +643,7 @@ export function buildArtifacts(settings) {
   const cutColor = cutStroke(settings.cutColor);
   const panels = layout.placed.map(makePreviewPanel).join("");
   const terrariumPanels = layout.placed.flatMap(panelTerrariumSegments).map(svgLine).join("");
-  const cutPanels = cutSegmentsForLayout(layout, settings).map(svgLine).join("");
+  const cutPanels = cutSegmentsForLayout(layout, settings).map(svgShape).join("");
   const markPanels = settings.includeMarks ? layout.placed.flatMap(panelMarkSegments).map(svgLine).join("") : "";
 
   const previewSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${rounded(layout.canvasWidth)} ${rounded(layout.canvasHeight)}" width="${rounded(layout.canvasWidth)}mm" height="${rounded(layout.canvasHeight)}mm">
