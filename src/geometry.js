@@ -1,81 +1,10 @@
-const $ = (id) => document.getElementById(id);
-
-const inputs = {
-  width: $("width"),
-  depth: $("depth"),
-  height: $("height"),
-  thickness: $("thickness"),
-  finger: $("finger"),
-  kerf: $("kerf"),
-  gap: $("gap"),
-  openTop: $("openTop"),
-  jointType: $("jointType"),
-  cutColor: $("cutColor"),
-  includeMarks: $("includeMarks"),
-  bedPreset: $("bedPreset"),
-  bedWidth: $("bedWidth"),
-  bedHeight: $("bedHeight"),
-  margin: $("margin"),
-  joinPieces: $("joinPieces"),
-};
-
-const svgStage = $("svgStage");
-const svgPan = $("svgPan");
-const svgSize = $("svgSize");
-const cutLength = $("cutLength");
-const layoutStatus = $("layoutStatus");
-const boxModel = $("boxModel");
-const scene = $("scene");
-const previewModeButton = $("previewMode");
-const cutModeButton = $("cutMode");
-const zoomInButton = $("zoomIn");
-const zoomOutButton = $("zoomOut");
-const fitViewButton = $("fitView");
-const zoomValue = $("zoomValue");
-const terrariumModeButton = $("terrariumMode");
-
-let previewSvg = "";
-let currentSvg = "";
-let currentDxf = "";
-let drawingMode = "preview";
-let terrariumMode = false;
-let zoom = 1;
-let needsFit = true;
-let view = { rx: -22, ry: 34 };
-let dragging = false;
-let dragStart = { x: 0, y: 0, rx: 0, ry: 0 };
-let panning = false;
-let panStart = { x: 0, y: 0, left: 0, top: 0 };
-
-function readSettings() {
-  return {
-    width: clampNumber(inputs.width.value, 20, 800),
-    depth: clampNumber(inputs.depth.value, 20, 800),
-    height: clampNumber(inputs.height.value, 20, 800),
-    thickness: clampNumber(inputs.thickness.value, 1, 20),
-    finger: clampNumber(inputs.finger.value, 4, 80),
-    kerf: clampNumber(inputs.kerf.value, 0, 1.5),
-    gap: clampNumber(inputs.gap.value, 4, 60),
-    openTop: inputs.openTop.checked,
-    jointType: inputs.jointType.value,
-    cutColor: inputs.cutColor.value,
-    includeMarks: inputs.includeMarks.checked,
-    bedPreset: inputs.bedPreset.value,
-    bedWidth: clampNumber(inputs.bedWidth.value, 80, 1600),
-    bedHeight: clampNumber(inputs.bedHeight.value, 80, 1200),
-    margin: clampNumber(inputs.margin.value, 0, 80),
-    joinPieces: inputs.joinPieces.checked,
-    terrariumMode,
-  };
-}
-
-function clampNumber(value, min, max) {
+export function clampNumber(value, min, max) {
   const parsed = Number(value);
   if (Number.isNaN(parsed)) return min;
   return Math.min(Math.max(parsed, min), max);
 }
 
-function rounded(value) {
+export function rounded(value) {
   return Math.round(value * 1000) / 1000;
 }
 
@@ -221,32 +150,6 @@ function makePreviewPanel(panel) {
     </g>`;
 }
 
-function makeCutPanel(panel) {
-  const { id, x, y, width, height, tab, finger, edgeVariants, cornerFill } = panel;
-  const jointType = effectiveJointType(panel);
-  const bounds = panelBounds(width, height, tab, jointType);
-  const path = panelPath(width, height, tab, finger, edgeVariants, jointType, cornerFill);
-  const tx = x + bounds.ox;
-  const ty = y + bounds.oy;
-  return `
-    <g id="${id}" transform="translate(${rounded(tx)} ${rounded(ty)})">
-      <path class="cut-line" d="${path}"/>
-    </g>`;
-}
-
-function makeMarkPanel({ id, x, y, width, height, tab, jointType }) {
-  const bounds = panelBounds(width, height, tab, jointType);
-  const tx = x + bounds.ox;
-  const ty = y + bounds.oy;
-  return `
-    <g id="${id}-marks" transform="translate(${rounded(tx)} ${rounded(ty)})">
-      <line class="fold-line" x1="0" y1="0" x2="${width}" y2="0"/>
-      <line class="fold-line" x1="${width}" y1="0" x2="${width}" y2="${height}"/>
-      <line class="fold-line" x1="${width}" y1="${height}" x2="0" y2="${height}"/>
-      <line class="fold-line" x1="0" y1="${height}" x2="0" y2="0"/>
-    </g>`;
-}
-
 function panelCutSegments(panel) {
   const { x, y, width, height, tab, finger, edgeVariants, cornerFill } = panel;
   const jointType = effectiveJointType(panel);
@@ -316,35 +219,19 @@ function ventInsertSegments(panel) {
   const rightSlitX = openingX + openingWidth * 0.56;
 
   return [
-    ...lineBank({
-      x: leftSlitX,
-      y: slitY,
-      length: slitLength,
-      count: slitCount,
-      spacing: slitSpacing,
-      orientation: "horizontal",
-    }),
-    ...lineBank({
-      x: rightSlitX,
-      y: slitY,
-      length: slitLength,
-      count: slitCount,
-      spacing: slitSpacing,
-      orientation: "horizontal",
-    }),
+    ...lineBank({ x: leftSlitX, y: slitY, length: slitLength, count: slitCount, spacing: slitSpacing, orientation: "horizontal" }),
+    ...lineBank({ x: rightSlitX, y: slitY, length: slitLength, count: slitCount, spacing: slitSpacing, orientation: "horizontal" }),
   ];
 }
 
 function panelTerrariumSegments(panel) {
   if (!panel.terrariumMode) return [];
-
   if (panel.id === "terrariumInsert") return ventInsertSegments(panel);
   if (panel.id !== "top") return [];
 
   const bounds = panelBounds(panel.width, panel.height, panel.tab, effectiveJointType(panel));
   const tx = panel.x + bounds.ox;
   const ty = panel.y + bounds.oy;
-
   const insert = ventInsertSpec(panel.width, panel.height);
   const openingWidth = insert.openingWidth;
   const openingHeight = insert.openingHeight;
@@ -409,7 +296,7 @@ function panelMarkSegments({ x, y, width, height, tab, jointType }) {
   }));
 }
 
-function buildLayout(settings) {
+export function buildLayout(settings) {
   const { width, depth, height, thickness, finger, gap, openTop, jointType } = settings;
   const tab = jointType === "finger" ? thickness - settings.kerf / 2 : 0;
   const layoutGapX = settings.joinPieces ? 0 : gap;
@@ -531,8 +418,8 @@ function buildDxf(layout, settings) {
   const cutSegments = cutSegmentsForLayout(layout, settings);
   const markSegments = settings.includeMarks ? layout.placed.flatMap(panelMarkSegments) : [];
   const segments = [...cutSegments, ...markSegments];
-
   const lineEntities = segments.map((segment) => makeDxfLine(segment, layout.canvasHeight, settings)).join("\n");
+
   return [
     "0", "SECTION",
     "2", "HEADER",
@@ -553,12 +440,11 @@ function buildDxf(layout, settings) {
   ].join("\n");
 }
 
-function makeFileName(settings, extension) {
+export function makeFileName(settings, extension) {
   return `cajalab-${settings.width}x${settings.depth}x${settings.height}mm.${extension}`;
 }
 
-function render() {
-  const settings = readSettings();
+export function buildArtifacts(settings) {
   const layout = buildLayout(settings);
   const cutColor = cutStroke(settings.cutColor);
   const panels = layout.placed.map(makePreviewPanel).join("");
@@ -566,7 +452,7 @@ function render() {
   const cutPanels = cutSegmentsForLayout(layout, settings).map(svgLine).join("");
   const markPanels = settings.includeMarks ? layout.placed.flatMap(panelMarkSegments).map(svgLine).join("") : "";
 
-  previewSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${rounded(layout.canvasWidth)} ${rounded(layout.canvasHeight)}" width="${rounded(layout.canvasWidth)}mm" height="${rounded(layout.canvasHeight)}mm">
+  const previewSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${rounded(layout.canvasWidth)} ${rounded(layout.canvasHeight)}" width="${rounded(layout.canvasWidth)}mm" height="${rounded(layout.canvasHeight)}mm">
   <style>
     .cut-line{fill:none;stroke:${cutColor};stroke-width:0.35;vector-effect:non-scaling-stroke}
     .fold-line{stroke:#8aa0b5;stroke-width:0.25;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
@@ -579,7 +465,7 @@ function render() {
   ${terrariumPanels}
 </svg>`;
 
-  currentSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${rounded(layout.canvasWidth)} ${rounded(layout.canvasHeight)}" width="${rounded(layout.canvasWidth)}mm" height="${rounded(layout.canvasHeight)}mm">
+  const cutSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${rounded(layout.canvasWidth)} ${rounded(layout.canvasHeight)}" width="${rounded(layout.canvasWidth)}mm" height="${rounded(layout.canvasHeight)}mm">
   <style>
     .cut-line{fill:none;stroke:${cutColor};stroke-width:0.35;vector-effect:non-scaling-stroke}
     .fold-line{stroke:#2b65b1;stroke-width:0.25;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
@@ -589,203 +475,12 @@ function render() {
     ${markPanels}
   </g>
 </svg>`;
-  currentDxf = buildDxf(layout, settings);
 
-  svgStage.dataset.cutColor = settings.cutColor;
-  terrariumModeButton.classList.toggle("active", settings.terrariumMode);
-  svgPan.innerHTML = drawingMode === "preview" ? previewSvg : currentSvg;
-  svgSize.value = `${Math.ceil(layout.canvasWidth)} x ${Math.ceil(layout.canvasHeight)} mm`;
-  cutLength.textContent = `${estimateCutLength(layout, settings).toFixed(2)} m`;
-  layoutStatus.textContent = layout.fitsBed
-    ? `Cabe en cama ${settings.bedWidth} x ${settings.bedHeight} mm${settings.joinPieces ? " - piezas juntas" : ""}`
-    : `No cabe: ${layout.oversized.join(", ")}`;
-  cutLength.parentElement.classList.toggle("warning", !layout.fitsBed);
-  applyZoom();
-  if (needsFit) fitToView();
-  updateModel(settings);
-}
-
-function setDrawingMode(mode) {
-  drawingMode = mode;
-  previewModeButton.classList.toggle("active", mode === "preview");
-  cutModeButton.classList.toggle("active", mode === "cut");
-  render();
-}
-
-function applyZoom() {
-  const svg = svgPan.querySelector("svg");
-  if (svg) {
-    const viewBox = svg.getAttribute("viewBox").split(" ").map(Number);
-    const width = viewBox[2];
-    const height = viewBox[3];
-    svg.style.width = `${width}px`;
-    svg.style.height = `${height}px`;
-    svgPan.style.width = `${width * zoom}px`;
-    svgPan.style.height = `${height * zoom}px`;
-  }
-  svgPan.style.transform = `scale(${zoom})`;
-  zoomValue.value = `${Math.round(zoom * 100)}%`;
-}
-
-function setZoom(nextZoom) {
-  zoom = Math.min(Math.max(nextZoom, 0.25), 4);
-  needsFit = false;
-  applyZoom();
-}
-
-function fitToView() {
-  const svg = svgPan.querySelector("svg");
-  if (!svg) return;
-
-  const viewBox = svg.getAttribute("viewBox").split(" ").map(Number);
-  const width = viewBox[2];
-  const height = viewBox[3];
-  const availableWidth = Math.max(120, svgStage.clientWidth - 36);
-  const availableHeight = Math.max(120, svgStage.clientHeight - 36);
-  zoom = Math.min(availableWidth / width, availableHeight / height, 2);
-  zoom = Math.max(zoom, 0.25);
-  applyZoom();
-  svgStage.scrollLeft = 0;
-  svgStage.scrollTop = 0;
-  needsFit = false;
-}
-
-function updateModel({ width, depth, height, openTop, jointType }) {
-  const maxDimension = Math.max(width, depth, height);
-  const scale = 270 / maxDimension;
-  boxModel.style.setProperty("--model-w", `${Math.max(width * scale, 70)}px`);
-  boxModel.style.setProperty("--model-d", `${Math.max(depth * scale, 55)}px`);
-  boxModel.style.setProperty("--model-h", `${Math.max(height * scale, 55)}px`);
-  boxModel.style.setProperty("--rx", `${view.rx}deg`);
-  boxModel.style.setProperty("--ry", `${view.ry}deg`);
-  boxModel.dataset.joint = jointType;
-  document.querySelector(".face-top").style.display = openTop ? "none" : "grid";
-}
-
-function downloadSvg() {
-  const settings = readSettings();
-  const blob = new Blob([currentSvg], { type: "image/svg+xml" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = makeFileName(settings, "svg");
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function downloadDxf() {
-  const settings = readSettings();
-  const blob = new Blob([currentDxf], { type: "application/dxf" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = makeFileName(settings, "dxf");
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-Object.values(inputs).forEach((input) => {
-  input.addEventListener("input", render);
-  input.addEventListener("change", render);
-});
-
-inputs.bedPreset.addEventListener("change", () => {
-  if (inputs.bedPreset.value === "300x200") {
-    inputs.bedWidth.value = 300;
-    inputs.bedHeight.value = 200;
-  }
-  if (inputs.bedPreset.value === "600x400") {
-    inputs.bedWidth.value = 600;
-    inputs.bedHeight.value = 400;
-  }
-  needsFit = true;
-  render();
-});
-
-inputs.bedWidth.addEventListener("input", () => {
-  inputs.bedPreset.value = "custom";
-});
-
-inputs.bedHeight.addEventListener("input", () => {
-  inputs.bedPreset.value = "custom";
-});
-
-$("downloadSvg").addEventListener("click", downloadSvg);
-$("downloadDxf").addEventListener("click", downloadDxf);
-previewModeButton.addEventListener("click", () => setDrawingMode("preview"));
-cutModeButton.addEventListener("click", () => setDrawingMode("cut"));
-terrariumModeButton.addEventListener("click", () => {
-  terrariumMode = !terrariumMode;
-  render();
-});
-zoomInButton.addEventListener("click", () => setZoom(zoom * 1.2));
-zoomOutButton.addEventListener("click", () => setZoom(zoom / 1.2));
-fitViewButton.addEventListener("click", () => {
-  needsFit = true;
-  fitToView();
-});
-$("resetView").addEventListener("click", () => {
-  view = { rx: -22, ry: 34 };
-  render();
-});
-
-scene.addEventListener("pointerdown", (event) => {
-  dragging = true;
-  dragStart = { x: event.clientX, y: event.clientY, rx: view.rx, ry: view.ry };
-  scene.setPointerCapture(event.pointerId);
-});
-
-scene.addEventListener("pointermove", (event) => {
-  if (!dragging) return;
-  view.ry = dragStart.ry + (event.clientX - dragStart.x) * 0.35;
-  view.rx = Math.max(-70, Math.min(35, dragStart.rx - (event.clientY - dragStart.y) * 0.28));
-  render();
-});
-
-scene.addEventListener("pointerup", () => {
-  dragging = false;
-});
-
-svgStage.addEventListener("pointerdown", (event) => {
-  if (event.button !== 0) return;
-  panning = true;
-  panStart = {
-    x: event.clientX,
-    y: event.clientY,
-    left: svgStage.scrollLeft,
-    top: svgStage.scrollTop,
+  return {
+    layout,
+    previewSvg,
+    cutSvg,
+    dxf: buildDxf(layout, settings),
+    cutLengthMeters: estimateCutLength(layout, settings),
   };
-  svgStage.classList.add("is-panning");
-  svgStage.setPointerCapture(event.pointerId);
-});
-
-svgStage.addEventListener("pointermove", (event) => {
-  if (!panning) return;
-  svgStage.scrollLeft = panStart.left - (event.clientX - panStart.x);
-  svgStage.scrollTop = panStart.top - (event.clientY - panStart.y);
-});
-
-svgStage.addEventListener("pointerup", () => {
-  panning = false;
-  svgStage.classList.remove("is-panning");
-});
-
-svgStage.addEventListener("wheel", (event) => {
-  if (!event.ctrlKey) return;
-  event.preventDefault();
-  setZoom(event.deltaY > 0 ? zoom / 1.1 : zoom * 1.1);
-}, { passive: false });
-
-window.addEventListener("resize", () => {
-  needsFit = true;
-  fitToView();
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-  if (window.lucide) window.lucide.createIcons();
-  render();
-});
+}
