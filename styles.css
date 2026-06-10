@@ -120,6 +120,55 @@ h2 {
   gap: 10px;
 }
 
+.preference-toggles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mini-toggle {
+  display: inline-grid;
+  grid-auto-flow: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field);
+}
+
+.mini-toggle button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 58px;
+  height: 38px;
+  padding: 0 10px;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.mini-toggle button + button {
+  border-left: 1px solid var(--line);
+}
+
+.mini-toggle button.active {
+  color: #fff;
+  background: var(--accent);
+}
+
+.mini-toggle svg {
+  width: 15px;
+  height: 15px;
+}
+
+.language-toggle button {
+  min-width: 40px;
+}
+
 .icon-button,
 .primary-button {
   display: inline-flex;
@@ -152,6 +201,13 @@ h2 {
   background: var(--accent-dark);
 }
 
+.primary-button.secondary {
+  color: var(--accent-dark);
+  border-color: rgba(13, 124, 102, 0.26);
+  background: var(--accent-soft);
+  box-shadow: none;
+}
+
 .tool-button {
   min-height: 40px;
   border: 1px solid var(--line);
@@ -169,7 +225,8 @@ h2 {
 }
 
 .icon-button svg,
-.primary-button svg {
+.primary-button svg,
+.tool-button svg {
   width: 19px;
   height: 19px;
 }
@@ -212,6 +269,12 @@ h2 {
   place-items: center;
   perspective: 1050px;
   cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.scene.is-dragging {
+  cursor: grabbing;
 }
 
 .box-model {
@@ -225,6 +288,7 @@ h2 {
 
 .face {
   position: absolute;
+  pointer-events: none;
   display: grid;
   place-items: center;
   border: 2px solid rgba(23, 32, 28, 0.28);
@@ -462,6 +526,59 @@ h2 {
   background: var(--panel);
 }
 
+.accordion-section {
+  padding: 0;
+  gap: 0;
+}
+
+.accordion-trigger {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  cursor: pointer;
+  font-weight: 900;
+  text-align: left;
+}
+
+.accordion-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accordion-trigger small {
+  overflow: hidden;
+  color: var(--accent-dark);
+  font-size: 11.5px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accordion-trigger svg {
+  width: 17px;
+  height: 17px;
+  color: var(--muted);
+  transition: transform 140ms ease;
+}
+
+.accordion-section.open .accordion-trigger svg {
+  transform: rotate(180deg);
+}
+
+.accordion-panel {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 14px;
+}
+
 .group-title,
 .status-head {
   display: flex;
@@ -653,6 +770,110 @@ select {
 .status-box.warning .status-head strong {
   color: #fff;
   background: var(--danger);
+}
+
+.checklist {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.checklist span {
+  overflow: hidden;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checklist .ok {
+  color: var(--accent-dark);
+  border-color: rgba(13, 124, 102, 0.22);
+  background: var(--accent-soft);
+}
+
+.checklist .warn {
+  color: var(--danger);
+  border-color: rgba(180, 35, 24, 0.24);
+  background: rgba(180, 35, 24, 0.08);
+}
+
+.warning-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 17px;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.file-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.file-actions .tool-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.tool-button.full {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.recent-list {
+  display: grid;
+  gap: 8px;
+}
+
+.recent-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.recent-item > button:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--field);
+  cursor: pointer;
+  text-align: left;
+}
+
+.recent-item strong,
+.recent-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-item small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
 }
 
 .bed-outline {

@@ -1,11 +1,191 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Maximize2, Minus, Moon, Plus, RotateCcw, Sun } from "lucide-react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Download, Maximize2, Minus, Moon, Plus, RotateCcw, Save, Sun, Trash2, Upload } from "lucide-react";
 import { buildArtifacts, clampNumber, makeFileName } from "./geometry.js";
 
 const INCH_IN_MM = 25.4;
 const STORAGE_KEY = "cajalab.settings.v1";
 const VIEW_STORAGE_KEY = "cajalab.view.v1";
 const THEME_STORAGE_KEY = "cajalab.theme.v1";
+const LANGUAGE_STORAGE_KEY = "cajalab.language.v1";
+const SECTIONS_STORAGE_KEY = "cajalab.sections.v1";
+const RECENTS_STORAGE_KEY = "cajalab.recents.v1";
+
+const translations = {
+  es: {
+    appTitle: "Generador de cajas para corte laser",
+    theme: "Tema",
+    light: "Claro",
+    dark: "Oscuro",
+    language: "Idioma",
+    resetView: "Reiniciar vista",
+    previewLabel: "Vista previa",
+    model3d: "Modelo 3D",
+    svgPlan: "Plano SVG",
+    plan2d: "Plano 2D",
+    preview: "Preview",
+    cut: "Corte",
+    zoomOut: "Alejar",
+    zoomIn: "Acercar",
+    fitView: "Ajustar a pantalla",
+    autoFit: "Auto-ajustar al cambiar medidas",
+    auto: "Auto",
+    cutFile: "Archivo de corte",
+    ready: "Listo",
+    review: "Revisar",
+    bed: "Cama",
+    fitsBed: "Cabe en cama",
+    joinedPieces: "piezas juntas",
+    doesNotFit: "No cabe",
+    dimensions: "Dimensiones",
+    material: "Material",
+    export: "Exportacion",
+    measurements: "Medidas",
+    units: "Unidades",
+    millimeters: "Milimetros",
+    inches: "Pulgadas",
+    dimensionType: "Tipo de medida",
+    internal: "Interna",
+    external: "Externa",
+    width: "Ancho",
+    depth: "Fondo",
+    height: "Alto",
+    generatedPlan: "Plano generado",
+    joints: "Uniones",
+    type: "Tipo",
+    fingerJoint: "Dedos intercalados",
+    plainEdge: "Canto recto",
+    fingerSize: "Tamano de dedo",
+    box: "Caja",
+    openTop: "Sin tapa",
+    layoutGap: "Separacion del plano",
+    materialThickness: "Grosor material",
+    bedWidth: "Ancho cama",
+    bedHeight: "Alto cama",
+    materialMargin: "Margen material",
+    joinPieces: "Juntar en fila",
+    terrarium: "Preparar para terrario",
+    preset: "Preset",
+    cutColor: "Color de corte",
+    scoreColor: "Color de score",
+    red: "Rojo",
+    black: "Negro",
+    white: "Blanco",
+    blue: "Azul",
+    green: "Verde",
+    darkBlue: "Azul oscuro",
+    cutLine: "Linea corte",
+    scoreLine: "Linea score",
+    internalMarks: "Marcas internas",
+    importJson: "Importar JSON",
+    exportJson: "Exportar JSON",
+    recents: "Recientes",
+    saveDesign: "Guardar actual",
+    noRecents: "Sin diseños guardados",
+    restore: "Restaurar",
+    delete: "Eliminar",
+    savedNow: "Guardado ahora",
+    importError: "No se pudo importar el archivo.",
+    custom: "Personalizado",
+    genericExport: "Generico SVG/DXF",
+    front: "Frente",
+    back: "Atras",
+    right: "Derecha",
+    left: "Izquierda",
+    top: "Arriba",
+    bottom: "Abajo",
+    smallFingers: "Dedos pequenos para el grosor del material.",
+    largeFingers: "Tamano de dedo demasiado grande para piezas pequenas.",
+    oddKerf: "Kerf fuera del rango comun para corte laser.",
+    thickLine: "Grosor de linea alto; algunas maquinas esperan trazos finos.",
+  },
+  en: {
+    appTitle: "Laser cut box generator",
+    theme: "Theme",
+    light: "Light",
+    dark: "Dark",
+    language: "Language",
+    resetView: "Reset view",
+    previewLabel: "Preview",
+    model3d: "3D model",
+    svgPlan: "SVG plan",
+    plan2d: "2D plan",
+    preview: "Preview",
+    cut: "Cut",
+    zoomOut: "Zoom out",
+    zoomIn: "Zoom in",
+    fitView: "Fit to view",
+    autoFit: "Auto-fit when dimensions change",
+    auto: "Auto",
+    cutFile: "Cut file",
+    ready: "Ready",
+    review: "Review",
+    bed: "Bed",
+    fitsBed: "Fits bed",
+    joinedPieces: "joined pieces",
+    doesNotFit: "Does not fit",
+    dimensions: "Dimensions",
+    material: "Material",
+    export: "Export",
+    measurements: "Measurements",
+    units: "Units",
+    millimeters: "Millimeters",
+    inches: "Inches",
+    dimensionType: "Dimension type",
+    internal: "Internal",
+    external: "External",
+    width: "Width",
+    depth: "Depth",
+    height: "Height",
+    generatedPlan: "Generated plan",
+    joints: "Joints",
+    type: "Type",
+    fingerJoint: "Finger joints",
+    plainEdge: "Plain edge",
+    fingerSize: "Finger size",
+    box: "Box",
+    openTop: "Open top",
+    layoutGap: "Layout gap",
+    materialThickness: "Material thickness",
+    bedWidth: "Bed width",
+    bedHeight: "Bed height",
+    materialMargin: "Material margin",
+    joinPieces: "Join in row",
+    terrarium: "Prepare terrarium",
+    preset: "Preset",
+    cutColor: "Cut color",
+    scoreColor: "Score color",
+    red: "Red",
+    black: "Black",
+    white: "White",
+    blue: "Blue",
+    green: "Green",
+    darkBlue: "Dark blue",
+    cutLine: "Cut line",
+    scoreLine: "Score line",
+    internalMarks: "Internal marks",
+    importJson: "Import JSON",
+    exportJson: "Export JSON",
+    recents: "Recent",
+    saveDesign: "Save current",
+    noRecents: "No saved designs",
+    restore: "Restore",
+    delete: "Delete",
+    savedNow: "Saved now",
+    importError: "Could not import the file.",
+    custom: "Custom",
+    genericExport: "Generic SVG/DXF",
+    front: "Front",
+    back: "Back",
+    right: "Right",
+    left: "Left",
+    top: "Top",
+    bottom: "Bottom",
+    smallFingers: "Finger size is small for the material thickness.",
+    largeFingers: "Finger size is too large for small panels.",
+    oddKerf: "Kerf is outside the common laser cutting range.",
+    thickLine: "Line width is high; some machines expect fine strokes.",
+  },
+};
 
 const defaultSettings = {
   unit: "mm",
@@ -20,7 +200,11 @@ const defaultSettings = {
   gap: 12,
   openTop: false,
   jointType: "finger",
-  cutColor: "white",
+  exportPreset: "lightburn",
+  cutColor: "#ff0000",
+  scoreColor: "#0000ff",
+  cutLineWidth: 0.1,
+  scoreLineWidth: 0.1,
   includeMarks: false,
   bedPreset: "300x200",
   bedWidth: 300,
@@ -38,6 +222,44 @@ const materialPresets = {
   custom: { label: "Personalizado" },
 };
 
+const exportPresets = {
+  lightburn: {
+    label: "LightBurn",
+    cutColor: "#ff0000",
+    scoreColor: "#0000ff",
+    cutLineWidth: 0.1,
+    scoreLineWidth: 0.1,
+    includeMarks: true,
+  },
+  glowforge: {
+    label: "Glowforge",
+    cutColor: "#ff0000",
+    scoreColor: "#00aa00",
+    cutLineWidth: 0.1,
+    scoreLineWidth: 0.1,
+    includeMarks: true,
+  },
+  xtool: {
+    label: "xTool",
+    cutColor: "#ff0000",
+    scoreColor: "#0000ff",
+    cutLineWidth: 0.1,
+    scoreLineWidth: 0.1,
+    includeMarks: true,
+  },
+  generic: {
+    label: "Generico SVG/DXF",
+    cutColor: "#101418",
+    scoreColor: "#2b65b1",
+    cutLineWidth: 0.25,
+    scoreLineWidth: 0.2,
+    includeMarks: false,
+  },
+  custom: {
+    label: "Personalizado",
+  },
+};
+
 const numberLimits = {
   width: [20, 800],
   depth: [20, 800],
@@ -49,6 +271,8 @@ const numberLimits = {
   bedWidth: [80, 1600],
   bedHeight: [80, 1200],
   margin: [0, 80],
+  cutLineWidth: [0.01, 2],
+  scoreLineWidth: [0.01, 2],
 };
 
 function toDisplayUnit(value, unit) {
@@ -130,19 +354,67 @@ function downloadFile(content, filename, type) {
   URL.revokeObjectURL(url);
 }
 
+function exportProject(settings) {
+  return JSON.stringify({
+    app: "CajaLab",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    settings,
+  }, null, 2);
+}
+
+function projectFileName(settings) {
+  return makeFileName(geometrySettings(settings), "cajalab.json");
+}
+
+function validateFabrication(settings, layout, t) {
+  const warnings = [];
+  const checks = [
+    { label: t.dimensions, ok: true },
+    { label: t.material, ok: true },
+    { label: t.bed, ok: layout.fitsBed },
+    { label: t.export, ok: true },
+  ];
+
+  if (!layout.fitsBed) warnings.push(`${t.doesNotFit}: ${layout.oversized.join(", ")}`);
+
+  if (settings.jointType === "finger") {
+    if (settings.finger < settings.thickness * 1.5) {
+      warnings.push(t.smallFingers);
+      checks[1].ok = false;
+    }
+    if (settings.finger > Math.min(settings.width, settings.depth, settings.height) / 2) {
+      warnings.push(t.largeFingers);
+      checks[0].ok = false;
+    }
+  }
+
+  if (settings.kerf < 0 || settings.kerf > 0.5) {
+    warnings.push(t.oddKerf);
+    checks[1].ok = false;
+  }
+
+  if (settings.cutLineWidth > 0.35 || settings.scoreLineWidth > 0.35) {
+    warnings.push(t.thickLine);
+    checks[3].ok = false;
+  }
+
+  return { checks, warnings };
+}
+
 function loadViewPrefs() {
-  if (typeof window === "undefined") return { zoom: 1, autoFit: true };
+  if (typeof window === "undefined") return { zoom: 1, autoFit: false };
 
   try {
     const rawPrefs = window.localStorage.getItem(VIEW_STORAGE_KEY);
-    if (!rawPrefs) return { zoom: 1, autoFit: true };
+    if (!rawPrefs) return { zoom: 1, autoFit: false };
     const saved = JSON.parse(rawPrefs);
     return {
       zoom: clampNumber(saved?.zoom ?? 1, 0.25, 4),
-      autoFit: Boolean(saved?.autoFit),
+      autoFit: saved?.mode === "auto" && saved?.autoFit === true,
     };
   } catch {
-    return { zoom: 1, autoFit: true };
+    return { zoom: 1, autoFit: false };
   }
 }
 
@@ -153,10 +425,78 @@ function loadTheme() {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
+function loadLanguage() {
+  if (typeof window === "undefined") return "es";
+  const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  if (savedLanguage === "es" || savedLanguage === "en") return savedLanguage;
+  return window.navigator?.language?.toLowerCase().startsWith("en") ? "en" : "es";
+}
+
+function loadOpenSections() {
+  const fallback = {
+    recents: true,
+    measurements: true,
+    joints: true,
+    box: true,
+    material: false,
+    export: false,
+  };
+  if (typeof window === "undefined") return fallback;
+
+  try {
+    return { ...fallback, ...JSON.parse(window.localStorage.getItem(SECTIONS_STORAGE_KEY)) };
+  } catch {
+    return fallback;
+  }
+}
+
+function loadRecentDesigns() {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(RECENTS_STORAGE_KEY));
+    return Array.isArray(saved) ? saved.slice(0, 5) : [];
+  } catch {
+    return [];
+  }
+}
+
+function AccordionSection({ id, title, badge, open, onToggle, children }) {
+  const buttonId = `${id}-button`;
+  const panelId = `${id}-panel`;
+
+  return (
+    <section className={`control-group accordion-section ${open ? "open" : ""}`}>
+      <button
+        id={buttonId}
+        className="accordion-trigger"
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => onToggle(id)}
+      >
+        <span>{title}</span>
+        {badge && <small>{badge}</small>}
+        <ChevronDown />
+      </button>
+      {open && (
+        <div id={panelId} className="accordion-panel" aria-labelledby={buttonId}>
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function normalizeAngle(angle) {
+  return ((angle + 180) % 360 + 360) % 360 - 180;
+}
+
 function useFitView(stageRef, panRef, activeSvg, layout) {
   const initialViewPrefs = useMemo(loadViewPrefs, []);
   const [zoom, setZoomState] = useState(initialViewPrefs.zoom);
   const [autoFit, setAutoFit] = useState(initialViewPrefs.autoFit);
+  const lastBedSizeRef = useRef(`${layout.canvasWidth}x${layout.canvasHeight}`);
 
   const applyZoom = (nextZoom) => {
     const svg = panRef.current?.querySelector("svg");
@@ -205,13 +545,21 @@ function useFitView(stageRef, panRef, activeSvg, layout) {
 
   useEffect(() => {
     requestAnimationFrame(() => {
-      if (autoFit) {
+      const bedSize = `${layout.canvasWidth}x${layout.canvasHeight}`;
+      const bedSizeChanged = lastBedSizeRef.current !== bedSize;
+      lastBedSizeRef.current = bedSize;
+
+      if (autoFit && bedSizeChanged) {
         fitToView({ keepAutoFit: true });
       } else {
         applyZoom(zoom);
       }
     });
   }, [activeSvg, layout.canvasWidth, layout.canvasHeight, autoFit]);
+
+  useLayoutEffect(() => {
+    applyZoom(zoom);
+  });
 
   useEffect(() => {
     const onResize = () => {
@@ -222,7 +570,7 @@ function useFitView(stageRef, panRef, activeSvg, layout) {
   }, [autoFit]);
 
   useEffect(() => {
-    window.localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify({ zoom, autoFit }));
+    window.localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify({ zoom, autoFit, mode: autoFit ? "auto" : "manual" }));
   }, [zoom, autoFit]);
 
   return { zoom, autoFit, setZoom, fitToView, toggleAutoFit };
@@ -231,18 +579,23 @@ function useFitView(stageRef, panRef, activeSvg, layout) {
 export default function App() {
   const [settings, setSettings] = useState(loadInitialSettings);
   const [theme, setTheme] = useState(loadTheme);
+  const [language, setLanguage] = useState(loadLanguage);
+  const [openSections, setOpenSections] = useState(loadOpenSections);
+  const [recentDesigns, setRecentDesigns] = useState(loadRecentDesigns);
   const [drawingMode, setDrawingMode] = useState("preview");
   const [view, setView] = useState({ rx: -22, ry: 34 });
   const [dragStart, setDragStart] = useState(null);
   const [panStart, setPanStart] = useState(null);
   const stageRef = useRef(null);
   const panRef = useRef(null);
+  const importInputRef = useRef(null);
 
-  const cutSettings = useMemo(() => geometrySettings(settings), [settings]);
+  const cutSettings = useMemo(() => ({ ...geometrySettings(settings), language }), [settings, language]);
   const artifacts = useMemo(() => buildArtifacts(cutSettings), [cutSettings]);
   const { layout } = artifacts;
   const activeSvg = drawingMode === "preview" ? artifacts.previewSvg : artifacts.cutSvg;
   const { zoom, autoFit, setZoom, fitToView, toggleAutoFit } = useFitView(stageRef, panRef, activeSvg, layout);
+  const t = translations[language];
 
   const maxDimension = Math.max(cutSettings.width, cutSettings.depth, cutSettings.height);
   const modelScale = 270 / maxDimension;
@@ -263,6 +616,23 @@ export default function App() {
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
+  useEffect(() => {
+    document.documentElement.lang = language;
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+  }, [language]);
+
+  useEffect(() => {
+    window.localStorage.setItem(SECTIONS_STORAGE_KEY, JSON.stringify(openSections));
+  }, [openSections]);
+
+  useEffect(() => {
+    window.localStorage.setItem(RECENTS_STORAGE_KEY, JSON.stringify(recentDesigns));
+  }, [recentDesigns]);
+
+  const toggleSection = (id) => {
+    setOpenSections((current) => ({ ...current, [id]: !current[id] }));
+  };
+
   const setField = (name, rawValue) => {
     setSettings((current) => {
       if (numberLimits[name]) {
@@ -271,6 +641,7 @@ export default function App() {
         const next = { ...current, [name]: value };
         if (name === "bedWidth" || name === "bedHeight") next.bedPreset = "custom";
         if (name === "thickness" || name === "kerf" || name === "finger") next.materialPreset = "custom";
+        if (name === "cutLineWidth" || name === "scoreLineWidth") next.exportPreset = "custom";
         return next;
       }
       return { ...current, [name]: rawValue };
@@ -303,20 +674,74 @@ export default function App() {
     });
   };
 
+  const setExportPreset = (value) => {
+    setSettings((current) => {
+      const preset = exportPresets[value];
+      if (!preset || value === "custom") return { ...current, exportPreset: "custom" };
+      return {
+        ...current,
+        exportPreset: value,
+        cutColor: preset.cutColor,
+        scoreColor: preset.scoreColor,
+        cutLineWidth: preset.cutLineWidth,
+        scoreLineWidth: preset.scoreLineWidth,
+        includeMarks: preset.includeMarks,
+      };
+    });
+  };
+
+  const setExportField = (name, value) => {
+    setSettings((current) => ({ ...current, [name]: value, exportPreset: "custom" }));
+  };
+
+  const importProject = async (file) => {
+    if (!file) return;
+    const text = await file.text();
+    const project = JSON.parse(text);
+    const nextSettings = project.settings || project;
+    setSettings({ ...defaultSettings, ...nextSettings });
+    importInputRef.current.value = "";
+  };
+
   const setUnit = (unit) => {
     setSettings((current) => ({ ...current, unit }));
   };
 
+  const saveRecentDesign = () => {
+    const name = `${Math.round(cutSettings.width)} x ${Math.round(cutSettings.depth)} x ${Math.round(cutSettings.height)} mm`;
+    const design = {
+      id: crypto.randomUUID(),
+      name,
+      savedAt: new Date().toISOString(),
+      settings,
+    };
+    setRecentDesigns((current) => [design, ...current.filter((item) => item.name !== name)].slice(0, 5));
+  };
+
+  const restoreRecentDesign = (design) => {
+    setSettings({ ...defaultSettings, ...design.settings });
+  };
+
+  const deleteRecentDesign = (id) => {
+    setRecentDesigns((current) => current.filter((design) => design.id !== id));
+  };
+
   const onScenePointerDown = (event) => {
-    setDragStart({ x: event.clientX, y: event.clientY, rx: view.rx, ry: view.ry });
+    event.preventDefault();
+    setDragStart({ x: event.clientX, y: event.clientY, rx: view.rx, ry: view.ry, active: false });
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const onScenePointerMove = (event) => {
     if (!dragStart) return;
+    const dx = event.clientX - dragStart.x;
+    const dy = event.clientY - dragStart.y;
+    if (!dragStart.active && Math.hypot(dx, dy) < 4) return;
+    if (!dragStart.active) setDragStart((current) => current ? { ...current, active: true } : current);
+
     setView({
-      ry: dragStart.ry + (event.clientX - dragStart.x) * 0.35,
-      rx: Math.max(-70, Math.min(35, dragStart.rx - (event.clientY - dragStart.y) * 0.28)),
+      ry: normalizeAngle(dragStart.ry + dx * 0.22),
+      rx: Math.max(-58, Math.min(28, dragStart.rx - dy * 0.18)),
     });
   };
 
@@ -338,10 +763,12 @@ export default function App() {
   };
 
   const layoutStatus = layout.fitsBed
-    ? `Cabe en cama ${formatMeasurement(settings.bedWidth, settings.unit)} x ${formatMeasurement(settings.bedHeight, settings.unit)}${settings.joinPieces ? " - piezas juntas" : ""}`
-    : `No cabe: ${layout.oversized.join(", ")}`;
+    ? `${t.fitsBed} ${formatMeasurement(settings.bedWidth, settings.unit)} x ${formatMeasurement(settings.bedHeight, settings.unit)}${settings.joinPieces ? ` - ${t.joinedPieces}` : ""}`
+    : `${t.doesNotFit}: ${layout.oversized.join(", ")}`;
   const generatedSize = `${formatMeasurement(cutSettings.width, settings.unit)} x ${formatMeasurement(cutSettings.depth, settings.unit)} x ${formatMeasurement(cutSettings.height, settings.unit)}`;
-  const materialLabel = materialPresets[settings.materialPreset]?.label || materialPresets.custom.label;
+  const materialLabel = settings.materialPreset === "custom" ? t.custom : materialPresets[settings.materialPreset]?.label || t.custom;
+  const exportLabel = settings.exportPreset === "generic" ? t.genericExport : settings.exportPreset === "custom" ? t.custom : exportPresets[settings.exportPreset]?.label || t.custom;
+  const fabrication = validateFabrication(cutSettings, layout, t);
 
   return (
     <main className="app-shell">
@@ -349,19 +776,26 @@ export default function App() {
         <header className="topbar">
           <div>
             <p className="eyebrow">CajaLab</p>
-            <h1>Generador de cajas para corte laser</h1>
+            <h1>{t.appTitle}</h1>
           </div>
           <div className="actions">
-            <button
-              className="icon-button"
-              type="button"
-              aria-label={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-              title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
-              onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")}
-            >
-              {theme === "dark" ? <Sun /> : <Moon />}
-            </button>
-            <button className="icon-button" type="button" aria-label="Reiniciar vista" title="Reiniciar vista" onClick={() => setView({ rx: -22, ry: 34 })}>
+            <div className="preference-toggles" aria-label="Preferencias">
+              <div className="mini-toggle" aria-label={t.theme}>
+                <button className={theme === "light" ? "active" : ""} type="button" onClick={() => setTheme("light")}>
+                  <Sun />
+                  {t.light}
+                </button>
+                <button className={theme === "dark" ? "active" : ""} type="button" onClick={() => setTheme("dark")}>
+                  <Moon />
+                  {t.dark}
+                </button>
+              </div>
+              <div className="mini-toggle language-toggle" aria-label={t.language}>
+                <button className={language === "es" ? "active" : ""} type="button" onClick={() => setLanguage("es")}>ES</button>
+                <button className={language === "en" ? "active" : ""} type="button" onClick={() => setLanguage("en")}>EN</button>
+              </div>
+            </div>
+            <button className="icon-button" type="button" aria-label={t.resetView} title={t.resetView} onClick={() => setView({ rx: -22, ry: 34 })}>
               <RotateCcw />
             </button>
             <button className="primary-button" type="button" onClick={() => downloadFile(artifacts.cutSvg, makeFileName(cutSettings, "svg"), "image/svg+xml")}>
@@ -372,55 +806,62 @@ export default function App() {
               <Download />
               DXF
             </button>
+            <button className="primary-button secondary" type="button" onClick={() => downloadFile(exportProject(settings), projectFileName(settings), "application/json")}>
+              <Download />
+              JSON
+            </button>
           </div>
         </header>
 
         <div className="preview-grid">
-          <section className="model-panel" aria-label="Modelo 3D">
+          <section className="model-panel" aria-label={t.model3d}>
             <div
-              className="scene"
+              className={`scene ${dragStart?.active ? "is-dragging" : ""}`}
               onPointerDown={onScenePointerDown}
               onPointerMove={onScenePointerMove}
               onPointerUp={() => setDragStart(null)}
+              onPointerCancel={() => setDragStart(null)}
+              onLostPointerCapture={() => setDragStart(null)}
+              onDoubleClick={() => setView({ rx: -22, ry: 34 })}
             >
               <div className="box-model" data-joint={cutSettings.jointType} style={modelStyle}>
-                <div className="face face-front">Frente</div>
-                <div className="face face-back">Atras</div>
-                <div className="face face-right">Derecha</div>
-                <div className="face face-left">Izquierda</div>
-                {!settings.openTop && <div className="face face-top">Arriba</div>}
-                <div className="face face-bottom">Abajo</div>
+                <div className="face face-front">{t.front}</div>
+                <div className="face face-back">{t.back}</div>
+                <div className="face face-right">{t.right}</div>
+                <div className="face face-left">{t.left}</div>
+                {!settings.openTop && <div className="face face-top">{t.top}</div>}
+                <div className="face face-bottom">{t.bottom}</div>
               </div>
             </div>
           </section>
 
-          <section className="drawing-panel" aria-label="Plano SVG">
+          <section className="drawing-panel" aria-label={t.svgPlan}>
             <div className="drawing-head">
               <div className="drawing-title">
-                <span>Plano 2D</span>
+                <span>{t.plan2d}</span>
                 <div className="segmented" aria-label="Modo de vista">
-                  <button className={`segment ${drawingMode === "preview" ? "active" : ""}`} type="button" onClick={() => setDrawingMode("preview")}>Preview</button>
-                  <button className={`segment ${drawingMode === "cut" ? "active" : ""}`} type="button" onClick={() => setDrawingMode("cut")}>Corte</button>
+                  <button className={`segment ${drawingMode === "preview" ? "active" : ""}`} type="button" onClick={() => setDrawingMode("preview")}>{t.preview}</button>
+                  <button className={`segment ${drawingMode === "cut" ? "active" : ""}`} type="button" onClick={() => setDrawingMode("cut")}>{t.cut}</button>
                 </div>
               </div>
               <div className="zoom-tools" aria-label="Zoom del plano">
-                <button className="icon-button small" type="button" aria-label="Alejar" title="Alejar" onClick={() => setZoom(zoom / 1.2)}>
+                <button className="icon-button small" type="button" aria-label={t.zoomOut} title={t.zoomOut} onClick={() => setZoom(zoom / 1.2)}>
                   <Minus />
                 </button>
                 <output>{Math.round(zoom * 100)}%</output>
-                <button className="icon-button small" type="button" aria-label="Acercar" title="Acercar" onClick={() => setZoom(zoom * 1.2)}>
+                <button className="icon-button small" type="button" aria-label={t.zoomIn} title={t.zoomIn} onClick={() => setZoom(zoom * 1.2)}>
                   <Plus />
                 </button>
-                <button className="icon-button small" type="button" aria-label="Ajustar a pantalla" title="Ajustar a pantalla" onClick={fitToView}>
+                <button className="icon-button small" type="button" aria-label={t.fitView} title={t.fitView} onClick={fitToView}>
                   <Maximize2 />
                 </button>
                 <button
                   className={`text-toggle ${autoFit ? "active" : ""}`}
                   type="button"
-                  title="Auto-ajustar al cambiar medidas"
+                  title={t.autoFit}
                   onClick={toggleAutoFit}
                 >
-                  Auto
+                  {t.auto}
                 </button>
               </div>
               <output>{Math.ceil(layout.canvasWidth)} x {Math.ceil(layout.canvasHeight)} mm</output>
@@ -444,124 +885,186 @@ export default function App() {
         </div>
       </section>
 
-      <aside className="controls" aria-label="Controles de caja">
+      <aside className="controls" aria-label={t.box}>
         <div className={`status-box ${layout.fitsBed ? "" : "warning"}`}>
           <div className="status-head">
-            <span>Archivo de corte</span>
-            <strong>{layout.fitsBed ? "Listo" : "Revisar"}</strong>
+            <span>{t.cutFile}</span>
+            <strong>{layout.fitsBed ? t.ready : t.review}</strong>
           </div>
           <div className="metric-grid">
             <span>
-              <small>Corte</small>
+              <small>{t.cut}</small>
               <strong>{artifacts.cutLengthMeters.toFixed(2)} m</strong>
             </span>
             <span>
-              <small>Cama</small>
+              <small>{t.bed}</small>
               <strong>{formatMeasurement(settings.bedWidth, settings.unit)} x {formatMeasurement(settings.bedHeight, settings.unit)}</strong>
             </span>
           </div>
           <small>{layoutStatus}</small>
+          <div className="checklist" aria-label="Checklist">
+            {fabrication.checks.map((check) => (
+              <span key={check.label} className={check.ok ? "ok" : "warn"}>{check.label}</span>
+            ))}
+          </div>
+          {fabrication.warnings.length > 0 && (
+            <ul className="warning-list">
+              {fabrication.warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          )}
         </div>
 
-        <div className="control-group">
-          <h2>Medidas</h2>
+        <AccordionSection id="recents" title={t.recents} open={openSections.recents} onToggle={toggleSection}>
+          <button className="tool-button full" type="button" onClick={saveRecentDesign}>
+            <Save />
+            {t.saveDesign}
+          </button>
+          <div className="recent-list">
+            {recentDesigns.length === 0 && <p className="control-note">{t.noRecents}</p>}
+            {recentDesigns.map((design) => (
+              <div className="recent-item" key={design.id}>
+                <button type="button" onClick={() => restoreRecentDesign(design)}>
+                  <strong>{design.name}</strong>
+                  <small>{new Date(design.savedAt).toLocaleString(language === "en" ? "en-US" : "es-MX")}</small>
+                </button>
+                <button className="icon-button small" type="button" aria-label={t.delete} title={t.delete} onClick={() => deleteRecentDesign(design.id)}>
+                  <Trash2 />
+                </button>
+              </div>
+            ))}
+          </div>
+        </AccordionSection>
+
+        <AccordionSection id="measurements" title={t.measurements} open={openSections.measurements} onToggle={toggleSection}>
           <label>
-            Unidades
+            {t.units}
             <select value={settings.unit} onChange={(event) => setUnit(event.target.value)}>
-              <option value="mm">Milimetros</option>
-              <option value="in">Pulgadas</option>
+              <option value="mm">{t.millimeters}</option>
+              <option value="in">{t.inches}</option>
             </select>
           </label>
           <label>
-            Tipo de medida
+            {t.dimensionType}
             <select value={settings.dimensionMode} onChange={(event) => setField("dimensionMode", event.target.value)}>
-              <option value="internal">Interna</option>
-              <option value="external">Externa</option>
+              <option value="internal">{t.internal}</option>
+              <option value="external">{t.external}</option>
             </select>
           </label>
-          <NumberField label="Ancho" name="width" value={settings.width} min="20" max="800" unit={settings.unit} onChange={setField} />
-          <NumberField label="Fondo" name="depth" value={settings.depth} min="20" max="800" unit={settings.unit} onChange={setField} />
-          <NumberField label="Alto" name="height" value={settings.height} min="20" max="800" unit={settings.unit} onChange={setField} />
+          <NumberField label={t.width} name="width" value={settings.width} min="20" max="800" unit={settings.unit} onChange={setField} />
+          <NumberField label={t.depth} name="depth" value={settings.depth} min="20" max="800" unit={settings.unit} onChange={setField} />
+          <NumberField label={t.height} name="height" value={settings.height} min="20" max="800" unit={settings.unit} onChange={setField} />
           <p className="control-note">
-            Plano generado: {generatedSize}
+            {t.generatedPlan}: {generatedSize}
           </p>
-        </div>
+        </AccordionSection>
 
-        <div className="control-group">
-          <h2>Uniones</h2>
+        <AccordionSection id="joints" title={t.joints} open={openSections.joints} onToggle={toggleSection}>
           <label>
-            Tipo
+            {t.type}
             <select value={settings.jointType} onChange={(event) => setField("jointType", event.target.value)}>
-              <option value="finger">Dedos intercalados</option>
-              <option value="plain">Canto recto</option>
+              <option value="finger">{t.fingerJoint}</option>
+              <option value="plain">{t.plainEdge}</option>
             </select>
           </label>
-          <NumberField label="Tamano de dedo" name="finger" value={settings.finger} min="4" max="80" unit={settings.unit} onChange={setField} />
+          <NumberField label={t.fingerSize} name="finger" value={settings.finger} min="4" max="80" unit={settings.unit} onChange={setField} />
           <NumberField label="Kerf" name="kerf" value={settings.kerf} min="0" max="1.5" step="0.01" unit={settings.unit} onChange={setField} />
-        </div>
+        </AccordionSection>
 
-        <div className="control-group">
-          <h2>Caja</h2>
+        <AccordionSection id="box" title={t.box} open={openSections.box} onToggle={toggleSection}>
           <label className="switch-row">
-            Sin tapa
+            {t.openTop}
             <input className="toggle-input" type="checkbox" checked={settings.openTop} onChange={(event) => setCheckbox("openTop", event.target.checked)} />
           </label>
-          <NumberField label="Separacion del plano" name="gap" value={settings.gap} min="4" max="60" unit={settings.unit} onChange={setField} />
-        </div>
+          <NumberField label={t.layoutGap} name="gap" value={settings.gap} min="4" max="60" unit={settings.unit} onChange={setField} />
+        </AccordionSection>
 
-        <div className="control-group">
-          <div className="group-title">
-            <h2>Material</h2>
-            <span>{materialLabel}</span>
-          </div>
+        <AccordionSection id="material" title={t.material} badge={materialLabel} open={openSections.material} onToggle={toggleSection}>
           <label>
-            Material
+            {t.material}
             <select value={settings.materialPreset} onChange={(event) => setMaterialPreset(event.target.value)}>
               {Object.entries(materialPresets).map(([value, preset]) => (
-                <option key={value} value={value}>{preset.label}</option>
+                <option key={value} value={value}>{value === "custom" ? t.custom : preset.label}</option>
               ))}
             </select>
           </label>
-          <NumberField label="Grosor material" name="thickness" value={settings.thickness} min="1" max="20" step="0.1" unit={settings.unit} onChange={setField} />
+          <NumberField label={t.materialThickness} name="thickness" value={settings.thickness} min="1" max="20" step="0.1" unit={settings.unit} onChange={setField} />
           <label>
-            Cama
+            {t.bed}
             <select value={settings.bedPreset} onChange={(event) => setBedPreset(event.target.value)}>
               <option value="300x200">300 x 200 mm</option>
               <option value="600x400">600 x 400 mm</option>
-              <option value="custom">Personalizado</option>
+              <option value="custom">{t.custom}</option>
             </select>
           </label>
-          <NumberField label="Ancho cama" name="bedWidth" value={settings.bedWidth} min="80" max="1600" unit={settings.unit} onChange={setField} />
-          <NumberField label="Alto cama" name="bedHeight" value={settings.bedHeight} min="80" max="1200" unit={settings.unit} onChange={setField} />
-          <NumberField label="Margen material" name="margin" value={settings.margin} min="0" max="80" unit={settings.unit} onChange={setField} />
+          <NumberField label={t.bedWidth} name="bedWidth" value={settings.bedWidth} min="80" max="1600" unit={settings.unit} onChange={setField} />
+          <NumberField label={t.bedHeight} name="bedHeight" value={settings.bedHeight} min="80" max="1200" unit={settings.unit} onChange={setField} />
+          <NumberField label={t.materialMargin} name="margin" value={settings.margin} min="0" max="80" unit={settings.unit} onChange={setField} />
           <label className="switch-row">
-            Juntar en fila
+            {t.joinPieces}
             <input className="toggle-input" type="checkbox" checked={settings.joinPieces} onChange={(event) => setCheckbox("joinPieces", event.target.checked)} />
           </label>
-        </div>
+        </AccordionSection>
 
-        <div className="control-group">
-          <h2>Exportacion</h2>
+        <AccordionSection id="export" title={t.export} badge={exportLabel} open={openSections.export} onToggle={toggleSection}>
           <button
             className={`tool-button ${settings.terrariumMode ? "active" : ""}`}
             type="button"
             onClick={() => setCheckbox("terrariumMode", !settings.terrariumMode)}
           >
-            Preparar para terrario
+            {t.terrarium}
           </button>
           <label>
-            Color de corte
-            <select value={settings.cutColor} onChange={(event) => setField("cutColor", event.target.value)}>
-              <option value="white">Blanco</option>
-              <option value="red">Rojo</option>
-              <option value="black">Negro</option>
+            {t.preset}
+            <select value={settings.exportPreset} onChange={(event) => setExportPreset(event.target.value)}>
+              {Object.entries(exportPresets).map(([value, preset]) => (
+                <option key={value} value={value}>
+                  {value === "generic" ? t.genericExport : value === "custom" ? t.custom : preset.label}
+                </option>
+              ))}
             </select>
           </label>
+          <label>
+            {t.cutColor}
+            <select value={settings.cutColor} onChange={(event) => setExportField("cutColor", event.target.value)}>
+              <option value="#ff0000">{t.red}</option>
+              <option value="#101418">{t.black}</option>
+              <option value="#ffffff">{t.white}</option>
+            </select>
+          </label>
+          <label>
+            {t.scoreColor}
+            <select value={settings.scoreColor} onChange={(event) => setExportField("scoreColor", event.target.value)}>
+              <option value="#0000ff">{t.blue}</option>
+              <option value="#00aa00">{t.green}</option>
+              <option value="#2b65b1">{t.darkBlue}</option>
+            </select>
+          </label>
+          <NumberField label={t.cutLine} name="cutLineWidth" value={settings.cutLineWidth} min="0.01" max="2" step="0.01" unit="mm" onChange={setField} />
+          <NumberField label={t.scoreLine} name="scoreLineWidth" value={settings.scoreLineWidth} min="0.01" max="2" step="0.01" unit="mm" onChange={setField} />
           <label className="switch-row">
-            Marcas internas
+            {t.internalMarks}
             <input className="toggle-input" type="checkbox" checked={settings.includeMarks} onChange={(event) => setCheckbox("includeMarks", event.target.checked)} />
           </label>
-        </div>
+          <div className="file-actions">
+            <button className="tool-button" type="button" onClick={() => importInputRef.current.click()}>
+              <Upload />
+              {t.importJson}
+            </button>
+            <button className="tool-button" type="button" onClick={() => downloadFile(exportProject(settings), projectFileName(settings), "application/json")}>
+              <Download />
+              {t.exportJson}
+            </button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              hidden
+              onChange={(event) => importProject(event.target.files?.[0]).catch(() => window.alert(t.importError))}
+            />
+          </div>
+        </AccordionSection>
       </aside>
     </main>
   );

@@ -100,6 +100,7 @@ function panelPath(width, height, tab, finger, edgeVariants, jointType, cornerFi
 }
 
 function cutStroke(color) {
+  if (typeof color === "string" && color.startsWith("#")) return color;
   return {
     white: "#fff",
     red: "#f04438",
@@ -108,11 +109,39 @@ function cutStroke(color) {
 }
 
 function dxfColor(color) {
+  if (typeof color === "string" && color.startsWith("#")) {
+    return {
+      "#ffffff": "7",
+      "#fff": "7",
+      "#ff0000": "1",
+      "#f04438": "1",
+      "#0000ff": "5",
+      "#2b65b1": "5",
+      "#00ff00": "3",
+      "#101418": "250",
+      "#000000": "250",
+    }[color.toLowerCase()] || "7";
+  }
+
   return {
     white: "7",
     red: "1",
     black: "250",
+    blue: "5",
+    green: "3",
   }[color] || "7";
+}
+
+function scoreStroke(settings) {
+  return cutStroke(settings.scoreColor || "#2b65b1");
+}
+
+function cutLineWidth(settings) {
+  return settings.cutLineWidth ?? 0.35;
+}
+
+function scoreLineWidth(settings) {
+  return settings.scoreLineWidth ?? 0.25;
 }
 
 function panelBounds(width, height, tab, jointType) {
@@ -274,8 +303,8 @@ function cutSegmentsForLayout(layout, settings) {
 }
 
 function svgLine({ layer, x1, y1, x2, y2 }) {
-  const className = layer === "CUT" ? "cut-line" : "fold-line";
-  return `<line class="${className}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+  const className = layer === "CUT" ? "cut-line" : "score-line";
+  return `<line class="${className}" data-layer="${layer}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
 }
 
 function panelMarkSegments({ x, y, width, height, tab, jointType }) {
@@ -283,10 +312,10 @@ function panelMarkSegments({ x, y, width, height, tab, jointType }) {
   const tx = x + bounds.ox;
   const ty = y + bounds.oy;
   return [
-    { layer: "MARK", x1: tx, y1: ty, x2: tx + width, y2: ty },
-    { layer: "MARK", x1: tx + width, y1: ty, x2: tx + width, y2: ty + height },
-    { layer: "MARK", x1: tx + width, y1: ty + height, x2: tx, y2: ty + height },
-    { layer: "MARK", x1: tx, y1: ty + height, x2: tx, y2: ty },
+    { layer: "SCORE", x1: tx, y1: ty, x2: tx + width, y2: ty },
+    { layer: "SCORE", x1: tx + width, y1: ty, x2: tx + width, y2: ty + height },
+    { layer: "SCORE", x1: tx + width, y1: ty + height, x2: tx, y2: ty + height },
+    { layer: "SCORE", x1: tx, y1: ty + height, x2: tx, y2: ty },
   ].map((line) => ({
     ...line,
     x1: rounded(line.x1),
@@ -298,26 +327,45 @@ function panelMarkSegments({ x, y, width, height, tab, jointType }) {
 
 export function buildLayout(settings) {
   const { width, depth, height, thickness, finger, gap, openTop, jointType } = settings;
+  const labels = settings.language === "en"
+    ? {
+        front: "Front",
+        back: "Back",
+        left: "Left",
+        right: "Right",
+        bottom: "Bottom",
+        top: "Lid",
+        insert: "Insert",
+      }
+    : {
+        front: "Frente",
+        back: "Atras",
+        left: "Izquierda",
+        right: "Derecha",
+        bottom: "Base",
+        top: "Tapa",
+        insert: "Inserto",
+      };
   const tab = jointType === "finger" ? thickness - settings.kerf / 2 : 0;
   const layoutGapX = settings.joinPieces ? 0 : gap;
   const layoutGapY = gap;
   const parts = [
-    { id: "front", label: "Frente", width, height, edgeVariants: { top: 1, right: 0, bottom: 1, left: 0 } },
-    { id: "back", label: "Atras", width, height, edgeVariants: { top: 1, right: 0, bottom: 1, left: 0 } },
-    { id: "left", label: "Izquierda", width: depth, height, edgeVariants: { top: 1, right: 1, bottom: 1, left: 1 } },
-    { id: "right", label: "Derecha", width: depth, height, edgeVariants: { top: 1, right: 1, bottom: 1, left: 1 } },
-    { id: "bottom", label: "Base", width, height: depth, edgeVariants: { top: 0, right: 0, bottom: 0, left: 0 }, cornerFill: true },
+    { id: "front", label: labels.front, width, height, edgeVariants: { top: 1, right: 0, bottom: 1, left: 0 } },
+    { id: "back", label: labels.back, width, height, edgeVariants: { top: 1, right: 0, bottom: 1, left: 0 } },
+    { id: "left", label: labels.left, width: depth, height, edgeVariants: { top: 1, right: 1, bottom: 1, left: 1 } },
+    { id: "right", label: labels.right, width: depth, height, edgeVariants: { top: 1, right: 1, bottom: 1, left: 1 } },
+    { id: "bottom", label: labels.bottom, width, height: depth, edgeVariants: { top: 0, right: 0, bottom: 0, left: 0 }, cornerFill: true },
   ];
 
   if (!openTop) {
-    parts.push({ id: "top", label: "Tapa", width, height: depth, edgeVariants: { top: 0, right: 0, bottom: 0, left: 0 }, cornerFill: true });
+    parts.push({ id: "top", label: labels.top, width, height: depth, edgeVariants: { top: 0, right: 0, bottom: 0, left: 0 }, cornerFill: true });
   }
 
   if (settings.terrariumMode && !openTop) {
     const insert = ventInsertSpec(width, depth);
     parts.push({
       id: "terrariumInsert",
-      label: "Inserto",
+      label: labels.insert,
       width: insert.width,
       height: insert.height,
       openingWidth: insert.openingWidth,
@@ -381,7 +429,7 @@ function dxfNumber(value) {
 }
 
 function makeDxfLine({ layer, x1, y1, x2, y2 }, canvasHeight, settings) {
-  const color = layer === "CUT" ? dxfColor(settings.cutColor) : "5";
+  const color = layer === "CUT" ? dxfColor(settings.cutColor) : dxfColor(settings.scoreColor || "blue");
   return [
     "0", "LINE",
     "8", layer,
@@ -397,7 +445,7 @@ function makeDxfLine({ layer, x1, y1, x2, y2 }, canvasHeight, settings) {
 
 function buildLayerTable(settings) {
   const markLayer = settings.includeMarks
-    ? ["0", "LAYER", "2", "MARK", "70", "0", "62", "5", "6", "CONTINUOUS"]
+    ? ["0", "LAYER", "2", "SCORE", "70", "0", "62", dxfColor(settings.scoreColor || "blue"), "6", "CONTINUOUS"]
     : [];
 
   return [
@@ -454,8 +502,8 @@ export function buildArtifacts(settings) {
 
   const previewSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${rounded(layout.canvasWidth)} ${rounded(layout.canvasHeight)}" width="${rounded(layout.canvasWidth)}mm" height="${rounded(layout.canvasHeight)}mm">
   <style>
-    .cut-line{fill:none;stroke:${cutColor};stroke-width:0.35;vector-effect:non-scaling-stroke}
-    .fold-line{stroke:#8aa0b5;stroke-width:0.25;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
+    .cut-line{fill:none;stroke:${cutColor};stroke-width:${cutLineWidth(settings)};vector-effect:non-scaling-stroke}
+    .fold-line,.score-line{stroke:#8aa0b5;stroke-width:${scoreLineWidth(settings)};stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
     .panel-label{fill:#9ba6af;font-size:7px;font-family:Arial,sans-serif;font-weight:700;text-anchor:middle}
     .bed-outline{fill:rgba(255,255,255,0.025);stroke:rgba(255,255,255,0.24);stroke-width:0.35;vector-effect:non-scaling-stroke}
     .bed-margin{fill:none;stroke:rgba(255,255,255,0.22);stroke-width:0.25;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
@@ -467,8 +515,8 @@ export function buildArtifacts(settings) {
 
   const cutSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${rounded(layout.canvasWidth)} ${rounded(layout.canvasHeight)}" width="${rounded(layout.canvasWidth)}mm" height="${rounded(layout.canvasHeight)}mm">
   <style>
-    .cut-line{fill:none;stroke:${cutColor};stroke-width:0.35;vector-effect:non-scaling-stroke}
-    .fold-line{stroke:#2b65b1;stroke-width:0.25;stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
+    .cut-line{fill:none;stroke:${cutColor};stroke-width:${cutLineWidth(settings)};vector-effect:non-scaling-stroke}
+    .score-line{stroke:${scoreStroke(settings)};stroke-width:${scoreLineWidth(settings)};stroke-dasharray:3 2;vector-effect:non-scaling-stroke}
   </style>
   <g>
     ${cutPanels}
