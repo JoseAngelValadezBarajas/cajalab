@@ -6,12 +6,39 @@
   --panel: #ffffff;
   --work: #f2f5f3;
   --tool: #e9eee7;
+  --field: #ffffff;
+  --topbar: rgba(255, 255, 255, 0.86);
+  --grid-bg: #fbfcfb;
+  --grid-line: rgba(13, 124, 102, 0.06);
+  --drawing-bg: #1f2b36;
   --accent: #0d7c66;
   --accent-dark: #075f4e;
+  --accent-soft: #e8f5ef;
+  --danger: #b42318;
   --cut: #ffffff;
   --score: #8aa0b5;
-  --shadow: 0 18px 50px rgba(24, 34, 29, 0.12);
+  --shadow: 0 12px 34px rgba(24, 34, 29, 0.1);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #eef7f2;
+  --muted: #a3b6ae;
+  --line: #2d3935;
+  --panel: #121a18;
+  --work: #0b1110;
+  --tool: #0f1714;
+  --field: #0c1412;
+  --topbar: rgba(15, 23, 20, 0.92);
+  --grid-bg: #0d1513;
+  --grid-line: rgba(90, 190, 165, 0.09);
+  --drawing-bg: #16242e;
+  --accent: #13a585;
+  --accent-dark: #55d2b9;
+  --accent-soft: #12352e;
+  --danger: #ff8b7f;
+  --shadow: 0 14px 38px rgba(0, 0, 0, 0.32);
 }
 
 * {
@@ -19,10 +46,15 @@
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   color: var(--ink);
   background: var(--work);
+  overflow: hidden;
+}
+
+#root {
+  min-height: 100dvh;
 }
 
 button,
@@ -33,14 +65,18 @@ select {
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  min-height: 100vh;
+  grid-template-columns: minmax(0, 1fr) clamp(320px, 19vw, 360px);
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .workspace {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
 }
 
 .topbar {
@@ -48,10 +84,10 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  min-height: 92px;
-  padding: 22px 28px;
+  min-height: 76px;
+  padding: 14px 28px;
   border-bottom: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--topbar);
   backdrop-filter: blur(14px);
 }
 
@@ -70,7 +106,7 @@ h2 {
 }
 
 h1 {
-  font-size: clamp(22px, 3vw, 36px);
+  font-size: clamp(22px, 2.4vw, 32px);
   line-height: 1.05;
 }
 
@@ -99,7 +135,7 @@ h2 {
 .icon-button {
   width: 42px;
   color: var(--ink);
-  background: #fff;
+  background: var(--field);
 }
 
 .primary-button {
@@ -109,6 +145,7 @@ h2 {
   border-color: var(--accent);
   background: var(--accent);
   font-weight: 800;
+  box-shadow: 0 8px 18px rgba(13, 124, 102, 0.18);
 }
 
 .primary-button:hover {
@@ -120,7 +157,7 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--accent-dark);
-  background: #eef7f3;
+  background: var(--accent-soft);
   cursor: pointer;
   font-weight: 850;
 }
@@ -139,17 +176,18 @@ h2 {
 
 .preview-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 0.95fr) minmax(360px, 1.05fr);
+  grid-template-columns: minmax(260px, 0.82fr) minmax(420px, 1.18fr);
   gap: 18px;
   min-height: 0;
   flex: 1;
   padding: 18px;
+  overflow: hidden;
 }
 
 .model-panel,
 .drawing-panel {
   min-width: 0;
-  min-height: 420px;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -161,14 +199,14 @@ h2 {
   display: grid;
   place-items: center;
   background:
-    linear-gradient(rgba(13, 124, 102, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(13, 124, 102, 0.06) 1px, transparent 1px),
-    #fbfcfb;
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+    var(--grid-bg);
   background-size: 26px 26px;
 }
 
 .scene {
-  width: min(70vmin, 520px);
+  width: min(58vmin, 440px);
   aspect-ratio: 1;
   display: grid;
   place-items: center;
@@ -197,6 +235,14 @@ h2 {
   font-size: 13px;
   font-weight: 800;
   backface-visibility: visible;
+}
+
+:root[data-theme="dark"] .face {
+  border-color: rgba(161, 225, 207, 0.34);
+  background:
+    repeating-linear-gradient(90deg, rgba(64, 196, 166, 0.22) 0 8px, transparent 8px 18px),
+    rgba(35, 83, 72, 0.68);
+  color: rgba(238, 247, 242, 0.76);
 }
 
 .face-front,
@@ -257,8 +303,8 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 8px 14px;
-  min-height: 86px;
-  padding: 10px 14px;
+  min-height: 64px;
+  padding: 8px 14px;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: 13px;
@@ -282,6 +328,24 @@ h2 {
   color: var(--muted);
   font-size: 12px;
   text-align: center;
+}
+
+.text-toggle {
+  min-width: 48px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--field);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.text-toggle.active {
+  color: #fff;
+  border-color: var(--accent);
+  background: var(--accent);
 }
 
 .icon-button.small {
@@ -312,7 +376,7 @@ h2 {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--field);
 }
 
 .segment {
@@ -335,9 +399,9 @@ h2 {
   position: relative;
   flex: 1;
   min-height: 0;
-  padding: 16px;
+  padding: 14px;
   overflow: auto;
-  background: #1f2b36;
+  background: var(--drawing-bg);
   cursor: grab;
   user-select: none;
 }
@@ -356,6 +420,10 @@ h2 {
   background: #f8faf8;
 }
 
+:root[data-theme="dark"] .svg-stage[data-cut-color="black"] {
+  background: #eef3ef;
+}
+
 .svg-stage svg {
   display: block;
   width: auto;
@@ -366,29 +434,66 @@ h2 {
 .controls {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 18px;
+  gap: 14px;
+  height: 100dvh;
+  min-height: 0;
+  padding: 18px 14px;
   border-left: 1px solid var(--line);
-  background: var(--tool);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.45), transparent 180px),
+    var(--tool);
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+:root[data-theme="dark"] .controls {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 190px),
+    var(--tool);
 }
 
 .control-group,
 .status-box {
   display: grid;
-  gap: 12px;
-  padding: 16px;
+  gap: 10px;
+  padding: 14px 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--panel);
+}
+
+.group-title,
+.status-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.group-title span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--accent-dark);
+  font-size: 11.5px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 label {
   display: grid;
-  gap: 7px;
+  gap: 6px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 750;
+}
+
+.control-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .field {
@@ -398,21 +503,28 @@ label {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--field);
 }
 
 input,
 select {
   width: 100%;
-  min-height: 40px;
+  min-height: 38px;
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--ink);
-  background: #fff;
+  background: var(--field);
+}
+
+input:focus,
+select:focus,
+button:focus-visible {
+  outline: 2px solid rgba(13, 124, 102, 0.28);
+  outline-offset: 2px;
 }
 
 .field input {
-  min-height: 40px;
+  min-height: 38px;
   border: 0;
   border-radius: 0;
   padding: 0 10px;
@@ -432,21 +544,100 @@ select {
   align-items: center;
 }
 
-.switch-row input {
-  width: 42px;
-  height: 24px;
-  accent-color: var(--accent);
+.toggle-input {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  margin: 0;
+  appearance: none;
+  border: 1px solid #cfd8d1;
+  border-radius: 999px;
+  background: var(--field);
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+:root[data-theme="dark"] .toggle-input {
+  border-color: #40514b;
+}
+
+.toggle-input::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(23, 32, 28, 0.22);
+  content: "";
+  transition: transform 140ms ease;
+}
+
+.toggle-input:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.toggle-input:checked::after {
+  transform: translateX(18px);
 }
 
 .status-box {
-  margin-top: auto;
   color: var(--muted);
   font-size: 13px;
+  border-color: rgba(13, 124, 102, 0.24);
+  background: linear-gradient(180deg, #ffffff, #f7fbf9);
 }
 
-.status-box strong {
+:root[data-theme="dark"] .status-box {
+  border-color: rgba(19, 165, 133, 0.38);
+  background: linear-gradient(180deg, #14211d, #101916);
+}
+
+.status-head span,
+.metric-grid small {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.status-head strong {
+  padding: 4px 9px;
+  border-radius: 999px;
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+  font-size: 12px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: 0.72fr 1.28fr;
+  gap: 8px;
+}
+
+.metric-grid span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(216, 222, 217, 0.82);
+  border-radius: 8px;
+  background: var(--field);
+}
+
+:root[data-theme="dark"] .metric-grid span {
+  border-color: rgba(69, 91, 84, 0.9);
+}
+
+.metric-grid strong {
   color: var(--ink);
-  font-size: 24px;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-box small {
@@ -456,7 +647,12 @@ select {
 
 .status-box.warning strong,
 .status-box.warning small {
-  color: #b42318;
+  color: var(--danger);
+}
+
+.status-box.warning .status-head strong {
+  color: #fff;
+  background: var(--danger);
 }
 
 .bed-outline {
@@ -505,11 +701,23 @@ select {
 }
 
 @media (max-width: 1100px) {
+  body {
+    overflow: auto;
+  }
+
   .app-shell {
     grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .workspace {
+    overflow: visible;
   }
 
   .controls {
+    height: auto;
     border-left: 0;
     border-top: 1px solid var(--line);
     grid-template-columns: repeat(2, minmax(260px, 1fr));
